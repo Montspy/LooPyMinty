@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), "hello_loopring")))
 
+import argparse
 import asyncio
 from aiohttp import ClientSession
 import json
@@ -13,6 +14,17 @@ import base58
 
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
 from CounterFactualNft import CounterFactualNftInfo
+
+# check for command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--cid", nargs=1, help="Specify the CIDv0 hash for metadata", type=str)
+args = parser.parse_args()
+
+# Set starting tokenId
+if args.cid:
+    startingId = args.cid[0]
+else:
+    sys.exit("ERROR: Missing CID")
 
 cfg = {}
 
@@ -25,7 +37,7 @@ def setup(cid):
     cfg['accountId']            = ACCT_ID
     cfg['nftType']              = NFT_TYPE
     cfg['creatorFeeBips']       = ROYALTY_PERCENTAGE
-    cfg['amount']               = 1
+    cfg['amount']               = COUNT
     cfg['validUntil']           = 1700000000
     cfg['maxFeeTokenId']        = FEE_TOKEN_ID
     cfg['nftFactory']           = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
