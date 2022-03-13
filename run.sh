@@ -1,4 +1,4 @@
 #!/bin/sh
 
-cd /LoopMintPy
+cd /loopmintpy
 python LoopMintPy.py $@

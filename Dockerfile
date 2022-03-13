@@ -15,5 +15,5 @@ COPY --from=build /usr/local/lib/python3.10 /usr/local/lib/python3.10
 # add the python files for the game
 ADD run.sh /usr/local/bin/run
 # finish up container
-WORKDIR /LoopMintPy
+WORKDIR /loopmintpy
 CMD ["run"]

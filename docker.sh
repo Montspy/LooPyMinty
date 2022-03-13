@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-name="LoopMintPy"
+name="loopmintpy"
 
 case $1 in
     build) docker build -t $name .;;
