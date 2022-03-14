@@ -1,3 +1,4 @@
 aiohttp
 base58
 docker
+python-dotenv

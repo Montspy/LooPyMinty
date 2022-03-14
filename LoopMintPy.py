@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import sys
-from os import path, environ
+from os import path, getenv
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), "hello_loopring")))
 
@@ -17,30 +20,45 @@ from CounterFactualNft import CounterFactualNftInfo
 
 cfg = {}
 
-def setup():
+async def setup(args):
     # Changes these variables to suit
-    cfg['loopringApiKey']       = environ.get("LOOPRINGAPIKEY")                     # TODO: Get from env variable. you can either set an environmental variable or input it here directly. You can export this from your account using loopring.io
-    cfg['loopringPrivateKey']   = environ.get("LOOPRINGPRIVATEKEY")                 # TODO: Get from env variable. you can either set an environmental variable or input it here directly. You can export this from your account using loopring.io
-    # cfg['ipfsCid']              = "QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4"  # the ipfs cid of your metadata.json
-    cfg['minterAddress']        = "0x1c65331556Cff08bb06c56fBb68FB0D1D2194F8A"      # your loopring address
-    cfg['accountId']            = 34247		                                        # your loopring account id
-    cfg['nftType']              = 0		                                            # nfttype 0 = ERC1155, shouldn't need to change this unless you want ERC721 which is 1
-    cfg['creatorFeeBips']       = 10		                                        # i wonder what setting this to something other than 0 would do?
-    cfg['amount']               = 1		                                            # leave this to one so you only mint 1
-    cfg['validUntil']           = 1700000000		                                # the examples seem to use this number
-    cfg['maxFeeTokenId']        = 1		                                            # 0 should be for ETH, 1 is for LRC?
-    cfg['nftFactory']           = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"	    # current nft factory of loopring, shouldn't need to change unless they deploye a new contract again, sigh...
-    cfg['exchange']             = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"	    # loopring exchange address, shouldn't need to change this
+    cfg['loopringApiKey']       = getenv("LOOPRING_API_KEY")
+    cfg['loopringPrivateKey']   = getenv("LOOPRING_PRIVATE_KEY")
+    cfg['ipfsCid']              = ""
+    cfg['minterAddress']        = getenv("MINTER")
+    cfg['accountId']            = int(getenv("ACCT_ID"))
+    cfg['nftType']              = int(getenv("NFT_TYPE"))
+    cfg['creatorFeeBips']       = int(getenv("ROYALTY_PERCENTAGE"))
+    cfg['amount']               = args.count
+    cfg['validUntil']           = 1700000000
+    cfg['maxFeeTokenId']        = int(getenv("FEE_TOKEN_ID"))
+    cfg['nftFactory']           = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
+    cfg['exchange']             = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
+    print("config dump:")
+    pprint(cfg)
 
     assert cfg['loopringPrivateKey'] is not None and cfg['loopringPrivateKey'][:2] == "0x"
     assert cfg['loopringApiKey'] is not None
+
+    # Generate CID if necessary
+    if args.format == 'path':
+        try:
+            async with CIDGenerator() as generator:
+                cfg['ipfsCid'] = await generator.get_cid_from_file(args.metadata)
+        except Exception as err:
+            sys.exit(f"Error with the CID Generator: {err}")
+    else:
+        cfg['ipfsCid'] = args.metadata
+
+    print("config dump:")
+    pprint(cfg)
 
 def parse_args():
     # check for command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--format',          help="Specify the input format (CID or file path)", type=str, 
                                                    choices=['cid', 'path'], required=True)
-    parser.add_argument('-m', '--metadata',        help="Specify the metadata.json file (CIDv0 hash or path to file)", type=str)
+    parser.add_argument('-m', '--metadata',        help="Specify the metadata.json file (CIDv0 hash or file path)", type=str, required=True)
     parser.add_argument('-c', '--count',           help="Specify the amount of items to mint (default: 1)", type=int, default=1)
 
     args = parser.parse_args()
@@ -48,20 +66,9 @@ def parse_args():
     return args
     
 async def main():
-    args = parse_args()
-
     # Initial Setup
-    setup()
-
-    if args.format == 'path':
-        try:
-            async with CIDGenerator() as generator:
-                cfg['ipfsCid'] = await generator.get_cid_from_file(args.metadata)
-        except Exception as err:
-            sys.exit(f"Error with the CID Generator: {err}")
-
-    print("config dump:")
-    pprint(cfg)
+    args = parse_args()
+    await setup(args)
 
     # Get storage id, token address and offchain fee
     async with LoopringMintService() as lms:

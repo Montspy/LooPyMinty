@@ -58,9 +58,9 @@ class LoopringMintService(object):
 
     def __init__(self) -> None:
         self.session = aiohttp.ClientSession(base_url=self.base_url)
-    
+
     async def getNextStorageId(self, apiKey: str, accountId: int, sellTokenId: int) -> StorageId:
-        params = {"accountId": accountId, 
+        params = {"accountId": accountId,
                   "sellTokenId": sellTokenId}
         headers = {"x-api-key": apiKey}
         storage_id = None
@@ -81,7 +81,7 @@ class LoopringMintService(object):
         return storage_id
 
     async def computeTokenAddress(self, apiKey: str, counterFactualNftInfo: CounterFactualNftInfo) -> CounterFactualNft:
-        params = {"nftFactory": counterFactualNftInfo['nftFactory'], 
+        params = {"nftFactory": counterFactualNftInfo['nftFactory'],
                   "nftOwner": counterFactualNftInfo['nftOwner'],
                   "nftBaseUri": counterFactualNftInfo['nftBaseUri']}
         headers = {"x-api-key": apiKey}
@@ -103,7 +103,7 @@ class LoopringMintService(object):
         return counterfactual_nft
 
     async def getOffChainFee(self, apiKey: str, accountId: int, requestType: int, tokenAddress: str) -> OffchainFee:
-        params = {"accountId": accountId, 
+        params = {"accountId": accountId,
                   "requestType": requestType,
                   "tokenAddress": tokenAddress}
         headers = {"x-api-key": apiKey}
@@ -123,10 +123,10 @@ class LoopringMintService(object):
             pprint(parsed)
 
         return off_chain_fee
-        
+
 
     async def mintNft(
-            self, 
+            self,
             apiKey: str,
             exchange: str,
             minterId: int,
@@ -145,7 +145,7 @@ class LoopringMintService(object):
             forceToMint: bool,
             counterFactualNftInfo: CounterFactualNftInfo,
             eddsaSignature: str) -> MintResponseData:
-        params = {"exchange": exchange, 
+        params = {"exchange": exchange,
                   "minterId": minterId,
                   "minterAddress": minterAddress,
                   "toAccountId": toAccountId,
@@ -193,4 +193,3 @@ class LoopringMintService(object):
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.session.close()
-        
