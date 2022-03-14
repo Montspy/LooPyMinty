@@ -35,7 +35,7 @@ else:
 
 cfg = {}
 
-def setup(cid):
+def setup():
     # Changes these variables to suit
     cfg['loopringApiKey']       = LOOPRING_API_KEY
     cfg['loopringPrivateKey']   = LOOPRING_PRIVATE_KEY
