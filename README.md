@@ -2,8 +2,6 @@
 
 This is a Python3 adaptation of fudgey's [LoopMintSharp](https://github.com/fudgebucket27/LoopMintSharp).
 
-This fork of [LoopMintPy](https://github.com/Montspy/LoopMintPy.git) is meant to be used in conjunction with the batch minting scripts.
-
 ## Install
 
 Using local environment:
