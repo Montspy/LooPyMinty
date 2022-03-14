@@ -142,6 +142,6 @@ async def main(cid):
         )
         print(f"Nft Mint reponse: {json.dumps(nft_mint_response, sort_keys=True, indent=4)}")
 
-#if __name__ == '__main__':
-#    loop = asyncio.get_event_loop()
-#    loop.run_until_complete(main())
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
