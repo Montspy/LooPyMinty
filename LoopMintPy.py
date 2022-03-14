@@ -55,9 +55,9 @@ def setup():
     assert cfg['loopringPrivateKey'] is not None and cfg['loopringPrivateKey'][:2] == "0x"
     assert cfg['loopringApiKey'] is not None
 
-async def main(cid):
+async def main():
     # Initial Setup
-    setup(cid)
+    setup()
     args = parse_args()
 
     # Get storage id, token address and offchain fee
