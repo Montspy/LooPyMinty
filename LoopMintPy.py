@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from os import path
+from os import path, getenv
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,16 +39,16 @@ cfg = {}
 
 def setup():
     # Changes these variables to suit
-    cfg['loopringApiKey']       = LOOPRING_API_KEY
-    cfg['loopringPrivateKey']   = LOOPRING_PRIVATE_KEY
+    cfg['loopringApiKey']       = getenv("LOOPRING_API_KEY")
+    cfg['loopringPrivateKey']   = getenv("LOOPRING_PRIVATE_KEY")
     cfg['ipfsCid']              = cid
-    cfg['minterAddress']        = MINTER
-    cfg['accountId']            = ACCT_ID
-    cfg['nftType']              = NFT_TYPE
-    cfg['creatorFeeBips']       = ROYALTY_PERCENTAGE
-    cfg['amount']               = count
+    cfg['minterAddress']        = getenv("MINTER")
+    cfg['accountId']            = int(getenv("ACCT_ID"))
+    cfg['nftType']              = int(getenv("NFT_TYPE"))
+    cfg['creatorFeeBips']       = int(getenv("ROYALTY_PERCENTAGE"))
+    cfg['amount']               = int(count)
     cfg['validUntil']           = 1700000000
-    cfg['maxFeeTokenId']        = FEE_TOKEN_ID
+    cfg['maxFeeTokenId']        = int(getenv("FEE_TOKEN_ID"))
     cfg['nftFactory']           = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
     cfg['exchange']             = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
     print("config dump:")
@@ -60,7 +60,6 @@ def setup():
 async def main():
     # Initial Setup
     setup()
-    args = parse_args()
 
     # Get storage id, token address and offchain fee
     async with LoopringMintService() as lms:
