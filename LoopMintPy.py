@@ -50,8 +50,8 @@ async def setup(args):
     else:
         cfg['ipfsCid'] = args.metadata
 
-    print("config dump:")
-    pprint(cfg)
+    # print("config dump:")
+    # pprint(cfg)
 
 def parse_args():
     # check for command line arguments
