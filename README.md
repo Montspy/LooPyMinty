@@ -19,7 +19,7 @@ Using Docker:
 ```shell
 git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
 ./docker.sh build
-./docker.sh --cid QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ
+./docker.sh --cid QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
 ```
 
 ## dotenv
