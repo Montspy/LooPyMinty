@@ -16,4 +16,4 @@ COPY --from=build /usr/local/lib/python3.10 /usr/local/lib/python3.10
 ADD run.sh /usr/local/bin/run
 # finish up container
 WORKDIR /loopmintpy
-CMD ["run"]
+ENTRYPOINT ["run"]
