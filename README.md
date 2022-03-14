@@ -9,7 +9,7 @@ Using local environment:
 ```shell
 git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
 pip3 install -r hello_loopring/requirements.txt -r requirements.txt
-python LoopMintPy.py --cid QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ
+python3 LoopMintPy.py --format cid --metadata QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
 ```
 
 Using Docker:
@@ -17,7 +17,7 @@ Using Docker:
 ```shell
 git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
 ./docker.sh build
-./docker.sh --cid QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
+./docker.sh --format cid --metadata QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
 ```
 
 ## dotenv
@@ -55,3 +55,37 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 | ROYALTY_PERCENTAGE   | Percentage for royalty payouts to the minter | 0 - 50                  |
 | FEE_TOKEN_ID         | ETH or LRC                                   | 0 (ETH) or 1 (LRC)      |
 | COUNT                | How many copies to mint                      | 1 - 10000               |
+
+## Usage
+
+```shell
+usage: LoopMintPy.py [-h] -f {cid,path} -m METADATA [-c COUNT]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f {cid,path}, --format {cid,path}
+                        Specify the input format (CID or file path)
+  -m METADATA, --metadata METADATA
+                        Specify the metadata.json file (CIDv0 hash or file path)
+  -c COUNT, --count COUNT
+                        Specify the amount of items to mint (default: 1)
+```
+
+### Examples:
+* Mint an NFT from a local `metadata.json` file
+```shell
+python3 -f path -m /path/to/metadata.json
+```
+-- or --
+```shell
+./docker.sh -f path -m /path/to/metadata.json
+```
+
+* Mint 10 NFT from the CIDv0 hash of a `metadata.json` file uploaded to IPFS
+```shell
+python3 -f cid -m QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 -c 10
+```
+-- or --
+```shell
+./docker.sh -f cid -m QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 -c 10
+```
