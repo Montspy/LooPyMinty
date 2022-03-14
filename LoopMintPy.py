@@ -18,13 +18,20 @@ from CounterFactualNft import CounterFactualNftInfo
 # check for command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--cid", nargs=1, help="Specify the CIDv0 hash for metadata", type=str)
+parser.add_argument("--count", nargs=1, help="Specify the amount of items to mint", type=int)
 args = parser.parse_args()
 
 # Set starting tokenId
 if args.cid:
-    startingId = args.cid[0]
+    cid = args.cid[0]
 else:
     sys.exit("ERROR: Missing CID")
+
+# Set starting tokenId
+if args.count:
+    count = args.count[0]
+else:
+    sys.exit("ERROR: Missing COUNT")
 
 cfg = {}
 
@@ -37,7 +44,7 @@ def setup(cid):
     cfg['accountId']            = ACCT_ID
     cfg['nftType']              = NFT_TYPE
     cfg['creatorFeeBips']       = ROYALTY_PERCENTAGE
-    cfg['amount']               = COUNT
+    cfg['amount']               = count
     cfg['validUntil']           = 1700000000
     cfg['maxFeeTokenId']        = FEE_TOKEN_ID
     cfg['nftFactory']           = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
