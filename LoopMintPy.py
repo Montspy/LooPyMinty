@@ -3,6 +3,8 @@ import sys
 from os import path
 from dotenv import load_dotenv
 
+load_dotenv()
+
 sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), "hello_loopring")))
 
 import argparse
