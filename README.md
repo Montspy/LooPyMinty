@@ -4,20 +4,20 @@ This is a Python3 adaptation of fudgey's [LoopMintSharp](https://github.com/fudg
 
 ## Install
 
-Using local environment:
+Download and Install [Docker Desktop](https://www.docker.com/products/docker-desktop) (recommended for Win/Mac), or using your prefered package installer (recommended for Linux)
 
+Using LoopMintPy in local environment:
 ```shell
-git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
+git clone --recurse-submodules https://github.com/Montspy/LoopMintPy.git
 pip3 install -r hello_loopring/requirements.txt -r requirements.txt
-python3 LoopMintPy.py --format cid --metadata QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
+python3 LoopMintPy.py --format cid --metadata QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
 ```
 
-Using Docker:
-
+Using LoopMintPy within Docker:
 ```shell
-git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
+git clone --recurse-submodules https://github.com/Montspy/LoopMintPy.git
 ./docker.sh build
-./docker.sh --format cid --metadata QmVpLSoYak1N8pasuxLrNZLbnvrNvLTJmY8ncMBjNRPBtQ --count 100
+./docker.sh --format cid --metadata QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
 ```
 
 ## dotenv
