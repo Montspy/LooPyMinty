@@ -28,7 +28,7 @@ def setup(count: int, cid: str):
     cfg['minterAddress']         = getenv("MINTER")
     cfg['accountId']             = int(getenv("ACCT_ID"))
     cfg['nftType']               = int(getenv("NFT_TYPE"))
-    cfg['creatorFeeBips']        = int(getenv("ROYALTY_PERCENTAGE"))    # TODO: Update to royaltyPercentage
+    cfg['royaltyPercentage']     = int(getenv("ROYALTY_PERCENTAGE"))
     cfg['amount']                = count
     cfg['validUntil']            = 1700000000
     cfg['maxFeeTokenId']         = int(getenv("FEE_TOKEN_ID"))
@@ -40,7 +40,7 @@ def setup(count: int, cid: str):
     assert cfg['minterAddress'] is not None, "Missing minter address (MINTER)"
     assert cfg['accountId'] is not None, "Missing account ID (ACCT_ID)"
     assert cfg['nftType'] in [0, 1], f"Incorrect NFT type (NFT_TYPE): {cfg['nftType']}"
-    assert cfg['creatorFeeBips'] in range(0, 11), f"Incorrect royalty percentage (ROYALTY_PERCENTAGE): {cfg['creatorFeeBips']}"
+    assert cfg['royaltyPercentage'] in range(0, 11), f"Incorrect royalty percentage [0-10] (ROYALTY_PERCENTAGE): {cfg['royaltyPercentage']}"
     assert cfg['maxFeeTokenId'] is not None, "Missing fee token ID (FEE_TOKEN_ID)"
     assert cfg['ipfsCid'] is not None and cfg['ipfsCid'][:2] == "Qm", f"Invalid cid: {cfg['ipfsCid']}"
     assert cfg['amount'] is not None, "Missing count"
@@ -121,7 +121,7 @@ async def main():
                 int(counterfactual_nft['tokenAddress'], 16),
                 nft_id_lo,
                 ntf_id_hi,
-                cfg['creatorFeeBips']
+                cfg['royaltyPercentage']
             ]
             hasher = NFTDataEddsaSignHelper()
             nft_data_poseidon_hash = hasher.hash(inputs)
@@ -166,7 +166,7 @@ async def main():
                     nftId=nft_id,
                     amount=str(cfg['amount']),
                     validUntil=cfg['validUntil'],
-                    creatorFeeBips=cfg['creatorFeeBips'],
+                    royaltyPercentage=cfg['royaltyPercentage'],
                     storageId=storage_id['offchainId'],
                     maxFeeTokenId=cfg['maxFeeTokenId'],
                     maxFeeAmount=off_chain_fee['fees'][cfg['maxFeeTokenId']]['fee'],
