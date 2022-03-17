@@ -127,7 +127,7 @@ class LoopringMintService(object):
             nftId: str,
             amount: str,
             validUntil: int,
-            creatorFeeBips: int,
+            royaltyPercentage: int,
             storageId: int,
             maxFeeTokenId: int,
             maxFeeAmount: str,
@@ -144,7 +144,7 @@ class LoopringMintService(object):
                   "nftId": nftId,
                   "amount": amount,
                   "validUntil": validUntil,
-                  "creatorFeeBips": creatorFeeBips, # TODO: Update to royaltyPercentage
+                  "royaltyPercentage": royaltyPercentage,
                   "storageId": storageId,
                   "maxFee": {
                       "tokenId": maxFeeTokenId,
