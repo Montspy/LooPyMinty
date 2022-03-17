@@ -21,6 +21,16 @@ MINT_INFO_PATH = './'
 cfg = {}
 secret = {} # Split to avoid leaking keys to console or logs
 
+# Verbose output
+VERBOSE = False
+def log(*objects, **kwds):
+    if VERBOSE:
+        print(*objects, **kwds)
+def plog(object, **kwds):
+    if VERBOSE:
+        pprint(object, **kwds)
+
+# Build config dictionnary
 def setup(count: int, cid: str):
     secret['loopringApiKey']     = getenv("LOOPRING_API_KEY")
     secret['loopringPrivateKey'] = getenv("LOOPRING_PRIVATE_KEY")
@@ -48,9 +58,10 @@ def setup(count: int, cid: str):
     if secret['loopringPrivateKey'][:2] != "0x":
         secret['loopringPrivateKey'] = hex(int(secret['loopringPrivateKey']))
 
-    print("config dump:")
-    pprint(cfg)
+    log("config dump:")
+    plog(cfg)
 
+# Parse CLI arguments
 def parse_args():
     # check for command line arguments
     parser = argparse.ArgumentParser()
@@ -59,13 +70,18 @@ def parse_args():
     group.add_argument("-j", "--json", help="Specify a json file containing a list of CIDv0 hash to mint", type=str)
     parser.add_argument("-n", "--count", help="Specify the amount of items to mint", type=int, default=1)
     parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
+    parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
     args = parser.parse_args()
 
     if args.json is not None:
         assert path.exists(args.json), f"JSON file not found: {args.json}"
 
+    global VERBOSE
+    VERBOSE = args.verbose
+
     return args
 
+# Estimate fees for a batch of NFTs from offchain fees
 def estimate_batch_fees(off_chain_fee, count):
     fee = int(off_chain_fee['fees'][cfg['maxFeeTokenId']]['fee'])
     token_symbol = off_chain_fee['fees'][cfg['maxFeeTokenId']]['token']
@@ -74,6 +90,7 @@ def estimate_batch_fees(off_chain_fee, count):
 
     return count * fee * discount / (10 ** decimals), token_symbol
 
+# Prompts the user to answer by yes or no
 def prompt_yes_no(prompt: str, default: str=None):
     if default is None:
         indicator = "[y/n]"
@@ -115,7 +132,7 @@ async def main():
     approved_fees_prompt = args.noprompt
 
     try:
-        for current_cid in cids:
+        for i, current_cid in enumerate(cids):
             info = {'cid': current_cid, 'count': args.count}
             mint_info.append(info)
             setup(args.count, current_cid)
@@ -124,24 +141,24 @@ async def main():
             async with LoopringMintService() as lms:
                 # Getting the storage id
                 storage_id = await lms.getNextStorageId(apiKey=secret['loopringApiKey'], accountId=cfg['accountId'], sellTokenId=cfg['maxFeeTokenId'])
-                print(f"Storage id: {json.dumps(storage_id, indent=2)}")
+                log(f"Storage id: {json.dumps(storage_id, indent=2)}")
                 info['storage_id'] = storage_id
 
                 # Getting the token address
                 counterfactual_ntf_info = CounterFactualNftInfo(nftOwner=cfg['minterAddress'], nftFactory=cfg['nftFactory'], nftBaseUri="")
                 counterfactual_nft = await lms.computeTokenAddress(apiKey=secret['loopringApiKey'], counterFactualNftInfo=counterfactual_ntf_info)
-                print(f"CounterFactualNFT Token Address: {json.dumps(counterfactual_nft, indent=2)}")
+                log(f"CounterFactualNFT Token Address: {json.dumps(counterfactual_nft, indent=2)}")
                 info['counterfactual_ntf_info'] = counterfactual_ntf_info
                 info['counterfactual_nft'] = counterfactual_nft
 
                 # Getting the offchain fee
                 off_chain_fee = await lms.getOffChainFee(apiKey=secret['loopringApiKey'], accountId=cfg['accountId'], requestType=9, tokenAddress=counterfactual_nft['tokenAddress'])
-                print(f"Offchain fee:  {json.dumps(off_chain_fee['fees'][cfg['maxFeeTokenId']], indent=2)}")
+                log(f"Offchain fee:  {json.dumps(off_chain_fee['fees'][cfg['maxFeeTokenId']], indent=2)}")
                 info['off_chain_fee'] = off_chain_fee
 
             if not approved_fees_prompt:
                 batch_fees, fees_symbol = estimate_batch_fees(off_chain_fee, len(cids))
-                print("--------")
+                log("--------")
                 approved_fees_prompt = prompt_yes_no(f"Estimated fees for minting {len(cids)} NFTs: {batch_fees}{fees_symbol}, continue?", default="no")
                 info['approved_fees'] = {'approval': approved_fees_prompt, 'fee': batch_fees, 'token': fees_symbol}
                 if not approved_fees_prompt: 
@@ -150,7 +167,7 @@ async def main():
             # Generate Eddsa Signature
             # Generate the nft id here
             nft_id = "0x" + base58.b58decode(cfg['ipfsCid']).hex()[4:]    # Base58 to hex and drop first 2 bytes
-            print(f"Generated NFT ID: {nft_id}")
+            log(f"Generated NFT ID: {nft_id}")
             info['nft_id'] = nft_id
 
             # Generate the poseidon hash for the nft data
@@ -167,8 +184,8 @@ async def main():
             ]
             hasher = NFTDataEddsaSignHelper()
             nft_data_poseidon_hash = hasher.hash(inputs)
-            # pprint(inputs)
-            print(f"Hashed NFT data: {hex(nft_data_poseidon_hash)}")
+            # plog(inputs)
+            log(f"Hashed NFT data: {hex(nft_data_poseidon_hash)}")
             info['nft_data_poseidon_hash'] = hex(nft_data_poseidon_hash)
 
             # Generate the poseidon hash for the remaining data
@@ -186,12 +203,12 @@ async def main():
             ]
             hasher = NFTEddsaSignHelper(private_key=secret['loopringPrivateKey'])
             nft_poseidon_hash = hasher.hash(inputs)
-            # pprint(inputs)
-            print(f"Hashed NFT payload: {hex(nft_poseidon_hash)}")
+            # plog(inputs)
+            log(f"Hashed NFT payload: {hex(nft_poseidon_hash)}")
             info['nft_poseidon_hash'] = hex(nft_poseidon_hash)
 
             eddsa_signature = hasher.sign(inputs)
-            print(f"Signed NFT payload hash: {eddsa_signature}")
+            log(f"Signed NFT payload hash: {eddsa_signature}")
             info['eddsa_signature'] = eddsa_signature
 
             # Submit the nft mint
@@ -216,8 +233,12 @@ async def main():
                     counterFactualNftInfo=counterfactual_ntf_info,
                     eddsaSignature=eddsa_signature
                 )
-                print(f"Nft Mint reponse: {nft_mint_response}")
+                log(f"Nft Mint reponse: {nft_mint_response}")
                 info['nft_mint_response'] = nft_mint_response
+                if nft_mint_response is not None:
+                    print(f"NFT {i+1}/{len(cids)}: Successful Mint! ({current_cid})")
+                else:
+                    print(f"NFT {i+1}/{len(cids)}: Mint FAILED... ({current_cid})")
     finally:
         with open(path.join(MINT_INFO_PATH, 'mint-info.json'), 'w+') as f:
             json.dump(mint_info, f, indent=4)
