@@ -46,7 +46,7 @@ def setup(count: int, cid: str):
     assert cfg['amount'] is not None, "Missing count"
 
     if secret['loopringPrivateKey'][:2] != "0x":
-        secret['loopringPrivateKey'] = "0x" + secret['loopringPrivateKey']
+        secret['loopringPrivateKey'] = hex(int(secret['loopringPrivateKey']))
 
     print("config dump:")
     pprint(cfg)
