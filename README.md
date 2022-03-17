@@ -1,6 +1,6 @@
 # LoopMintPy
 
-This is a Python3 adaptation of fudgey's [LoopMintSharp](https://github.com/fudgebucket27/LoopMintSharp).
+This is a **Python3** adaptation of fudgey's [LoopMintSharp](https://github.com/fudgebucket27/LoopMintSharp).
 Now with batch minting!
 
 ## Install
@@ -8,14 +8,14 @@ Now with batch minting!
 Using local environment:
 
 ```shell
-git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
-pip3 install -r hello_loopring/requirements.txt -r requirements.txt
+git clone --recurse-submodules https://github.com/Montspy/LooPyMinty.git
+pip install -r hello_loopring/requirements.txt -r requirements.txt
 ```
 
 Using Docker:
 
 ```shell
-git clone --recurse-submodules https://github.com/sk33z3r/LoopMintPy.git
+git clone --recurse-submodules https://github.com/Montspy/LooPyMinty.git
 ./docker.sh build
 ```
 
@@ -51,11 +51,11 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 | MINTER               | `address`                                    | See your account export |
 | ACCT_ID              | `accountId`                                  | See your account export |
 | NFT_TYPE             | EIP1155 or EIP721                            | 0 (1155) or 1 (721)     |
-| ROYALTY_PERCENTAGE   | Percentage for royalty payouts to the minter | 0 - 50                  |
+| ROYALTY_PERCENTAGE   | Percentage for royalty payouts to the minter | 0 - 10                  |
 | FEE_TOKEN_ID         | ETH or LRC                                   | 0 (ETH) or 1 (LRC)      |
 | COUNT                | How many copies to mint                      | 1 - 10000               |
 
-## Usage
+## Usage with Python
 
 ```shell
 > python LoopMintPy.py -h
@@ -81,6 +81,23 @@ python LoopMintPy.py --json ./all-cids.json --count 1
 ```
 
 Content of `all-cids.json` should be an array of CIDs:
+```json
+[
+    "QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4",
+    "QmeBYxSPi4ryTjK72QkQe1Rw8hgA4Zh28c1BxWASVbAb16",
+    "QmeUT2SX9twp2re87dNefgDrUirR4uLAEoKUaN1mPzctg3"
+]
+```
+
+## Usage with Docker
+```shell
+./docker.sh --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
+```
+
+```shell
+./docker.sh --json ./all-cids.json --count 1
+```
+
 ```json
 [
     "QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4",
