@@ -210,35 +210,45 @@ async def main():
             eddsa_signature = hasher.sign(inputs)
             log(f"Signed NFT payload hash: {eddsa_signature}")
             info['eddsa_signature'] = eddsa_signature
-
+            
             # Submit the nft mint
             async with LoopringMintService() as lms:
-                nft_mint_response = await lms.mintNft(
-                    apiKey=secret['loopringApiKey'],
-                    exchange=cfg['exchange'],
-                    minterId=cfg['accountId'],
-                    minterAddress=cfg['minterAddress'],
-                    toAccountId=cfg['accountId'],
-                    toAddress=cfg['minterAddress'],
-                    nftType=cfg['nftType'],
-                    tokenAddress=counterfactual_nft['tokenAddress'],
-                    nftId=nft_id,
-                    amount=str(cfg['amount']),
-                    validUntil=cfg['validUntil'],
-                    royaltyPercentage=cfg['royaltyPercentage'],
-                    storageId=storage_id['offchainId'],
-                    maxFeeTokenId=cfg['maxFeeTokenId'],
-                    maxFeeAmount=off_chain_fee['fees'][cfg['maxFeeTokenId']]['fee'],
-                    forceToMint=False,
-                    counterFactualNftInfo=counterfactual_ntf_info,
-                    eddsaSignature=eddsa_signature
-                )
-                log(f"Nft Mint reponse: {nft_mint_response}")
-                info['nft_mint_response'] = nft_mint_response
-                if nft_mint_response is not None:
-                    print(f"NFT {i+1}/{len(cids)}: Successful Mint! ({current_cid})")
+                # Check if NFT exists (get the token nft data)
+                nft_data = await lms.getNftData(nftDatas=hex(nft_data_poseidon_hash))
+                log(f"Nft data: {json.dumps(nft_data, indent=2)}")
+                info['nft_data'] = nft_data
+                nft_exists = lms.last_status == 200 and nft_data is not None
+
+                if not nft_exists:
+                    nft_mint_response = await lms.mintNft(
+                        apiKey=secret['loopringApiKey'],
+                        exchange=cfg['exchange'],
+                        minterId=cfg['accountId'],
+                        minterAddress=cfg['minterAddress'],
+                        toAccountId=cfg['accountId'],
+                        toAddress=cfg['minterAddress'],
+                        nftType=cfg['nftType'],
+                        tokenAddress=counterfactual_nft['tokenAddress'],
+                        nftId=nft_id,
+                        amount=str(cfg['amount']),
+                        validUntil=cfg['validUntil'],
+                        royaltyPercentage=cfg['royaltyPercentage'],
+                        storageId=storage_id['offchainId'],
+                        maxFeeTokenId=cfg['maxFeeTokenId'],
+                        maxFeeAmount=off_chain_fee['fees'][cfg['maxFeeTokenId']]['fee'],
+                        forceToMint=False,
+                        counterFactualNftInfo=counterfactual_ntf_info,
+                        eddsaSignature=eddsa_signature
+                    )
+                    log(f"Nft Mint reponse: {nft_mint_response}")
+                    info['nft_mint_response'] = nft_mint_response
+                    if nft_mint_response is not None:
+                        print(f"NFT {i+1}/{len(cids)}: Successful Mint! ({current_cid})")
+                    else:
+                        print(f"NFT {i+1}/{len(cids)}: Mint FAILED... ({current_cid})")
                 else:
-                    print(f"NFT {i+1}/{len(cids)}: Mint FAILED... ({current_cid})")
+                    print(f"NFT {i+1}/{len(cids)}: Skipping mint (nft already exists) ({current_cid})")
+
     finally:
         with open(path.join(MINT_INFO_PATH, 'mint-info.json'), 'w+') as f:
             json.dump(mint_info, f, indent=4)
