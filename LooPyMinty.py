@@ -57,13 +57,45 @@ def parse_args():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("-c", "--cid", help="Specify the CIDv0 hash for the metadata to mint", type=str)
     group.add_argument("-j", "--json", help="Specify a json file containing a list of CIDv0 hash to mint", type=str)
-    parser.add_argument("--count", help="Specify the amount of items to mint", type=int)
+    parser.add_argument("-n", "--count", help="Specify the amount of items to mint", type=int, default=1)
+    parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
     args = parser.parse_args()
 
     if args.json is not None:
         assert path.exists(args.json), f"JSON file not found: {args.json}"
 
     return args
+
+def estimate_batch_fees(off_chain_fee, count):
+    fee = int(off_chain_fee['fees'][cfg['maxFeeTokenId']]['fee'])
+    token_symbol = off_chain_fee['fees'][cfg['maxFeeTokenId']]['token']
+    discount = off_chain_fee['fees'][cfg['maxFeeTokenId']]['discount']
+    decimals = token_decimals[token_symbol]
+
+    return count * fee * discount / (10 ** decimals), token_symbol
+
+def prompt_yes_no(prompt: str, default: str=None):
+    if default is None:
+        indicator = "[y/n]"
+    elif default == "yes":
+        indicator = "[Y/n]"
+    elif default == "no":
+        indicator = "[y/N]"
+    else:
+        raise ValueError(f"Invalid default string yes/no/None but is {default}")
+    
+    while True:
+        print(f"{prompt} {indicator}: ", end='')
+        s = input().lower()
+        if s[:1] == 'y':
+            return True
+        elif s[:1] == 'n':
+            return False
+        elif s == "" and default is not None:
+            if default == "yes":
+                return True
+            elif default == "no":
+                return False
 
 async def main():
     # Initial Setup
@@ -80,7 +112,9 @@ async def main():
         makedirs(MINT_INFO_PATH)
     mint_info = []
 
-    try: 
+    approved_fees_prompt = args.noprompt
+
+    try:
         for current_cid in cids:
             info = {'cid': current_cid, 'count': args.count}
             mint_info.append(info)
@@ -104,6 +138,14 @@ async def main():
                 off_chain_fee = await lms.getOffChainFee(apiKey=secret['loopringApiKey'], accountId=cfg['accountId'], requestType=9, tokenAddress=counterfactual_nft['tokenAddress'])
                 print(f"Offchain fee:  {json.dumps(off_chain_fee['fees'][cfg['maxFeeTokenId']], indent=2)}")
                 info['off_chain_fee'] = off_chain_fee
+
+            if not approved_fees_prompt:
+                batch_fees, fees_symbol = estimate_batch_fees(off_chain_fee, len(cids))
+                print("--------")
+                approved_fees_prompt = prompt_yes_no(f"Estimated fees for minting {len(cids)} NFTs: {batch_fees}{fees_symbol}, continue?", default="no")
+                info['approved_fees'] = {'approval': approved_fees_prompt, 'fee': batch_fees, 'token': fees_symbol}
+                if not approved_fees_prompt: 
+                    sys.exit("Aborted by user")
 
             # Generate Eddsa Signature
             # Generate the nft id here

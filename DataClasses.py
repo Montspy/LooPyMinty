@@ -11,7 +11,7 @@ class CounterFactualNftInfo(TypedDict):
 class Fee(TypedDict):
     token: str
     fee: str
-    discount: int
+    discount: float
 
 class OffchainFee(TypedDict):
     gasPrice: str
@@ -20,3 +20,5 @@ class OffchainFee(TypedDict):
 class StorageId(TypedDict):
     orderId: int
     offchainId: int
+
+token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}
