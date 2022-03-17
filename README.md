@@ -12,6 +12,8 @@ git clone --recurse-submodules https://github.com/Montspy/LooPyMinty.git
 pip install -r hello_loopring/requirements.txt -r requirements.txt
 ```
 
+Some additional depencies include: `python-dev`, `gcc`, `libc-dev` and may need ot be install with your package manager if pip install fails
+
 Using Docker:
 
 ```shell
