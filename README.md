@@ -9,10 +9,10 @@ Using local environment:
 
 ```shell
 git clone --recurse-submodules https://github.com/Montspy/LooPyMinty.git
-pip install -r hello_loopring/requirements.txt -r requirements.txt
+pip3 install -r hello_loopring/requirements.txt -r requirements.txt
 ```
 
-Some additional depencies include: `python-dev`, `gcc`, `libc-dev` and may need ot be install with your package manager if pip install fails
+Some additional depencies include: `python-dev`, `gcc`, `libc-dev` and may need ot be install with your package manager if pip3 install fails.
 
 Using Docker:
 
@@ -27,7 +27,7 @@ First you need to export your account to get the necessary details to fill in th
 
 Go to loopring.io -> Security -> Export Account and copy the JSON provided into a safe space.
 
-**DO NOT SHARE THIS INFO WITH ANYONE**
+**⚠️ DO NOT SHARE THIS INFO WITH ANYONE ⚠️**
 
 The output should look something like this:
 
@@ -60,26 +60,29 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 ## Usage with Python
 
 ```shell
-> python LoopMintPy.py -h
-usage: LoopMintPy.py [-h] (-c CID | -j JSON) [--count COUNT]
+> python3 LooPyMinty.py -h
+usage: LooPyMinty.py [-h] (-c CID | -j JSON) [-n COUNT] [--noprompt] [-V]
 
 optional arguments:
   -h, --help            show this help message and exit
   -c CID, --cid CID     Specify the CIDv0 hash for the metadata to mint
   -j JSON, --json JSON  Specify a json file containing a list of CIDv0 hash to mint
-  --count COUNT         Specify the amount of items to mint
+  -n COUNT, --count COUNT
+                        Specify the amount of items to mint
+  --noprompt            Skip all user prompts
+  -V, --verbose         Verbose output
 ```
 
 ### Mint a single NFT
 
 ```shell
-python LoopMintPy.py --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
+python3 LoopMintPy.py --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
 ```
 
 ### Batch mint NFTs
 
 ```shell
-python LoopMintPy.py --json ./all-cids.json --count 1
+python3 LoopMintPy.py --json ./all-cids.json --count 1
 ```
 
 Content of `all-cids.json` should be an array of CIDs:
