@@ -57,18 +57,21 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 | FEE_TOKEN_ID         | ETH or LRC                                   | 0 (ETH) or 1 (LRC)      |
 | COUNT                | How many copies to mint                      | 1 - 10000               |
 
-## Usage with Python
+## Usage
 
 ```shell
 > python3 LooPyMinty.py -h
-usage: LooPyMinty.py [-h] (-c CID | -j JSON) [-n COUNT] [--noprompt] [-V]
+usage: LooPyMinty.py [-h] (-c CID | -j JSON) [-n AMOUNT] [-s START] [-e END] [--noprompt] [-V]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -c CID, --cid CID     Specify the CIDv0 hash for the metadata to mint
   -j JSON, --json JSON  Specify a json file containing a list of CIDv0 hash to mint
-  -n COUNT, --count COUNT
-                        Specify the amount of items to mint
+  -n AMOUNT, --amount AMOUNT
+                        Specify the mint amount per NFT
+  -s START, --start START
+                        Specify the the starting ID to mint
+  -e END, --end END     Specify the last ID to mint
   --noprompt            Skip all user prompts
   -V, --verbose         Verbose output
 ```
@@ -77,36 +80,33 @@ optional arguments:
 
 ```shell
 python3 LoopMintPy.py --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
+# or
+./docker.sh --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
 ```
 
 ### Batch mint NFTs
 
 ```shell
-python3 LoopMintPy.py --json ./all-cids.json --count 1
+python3 LoopMintPy.py --json ./metadata-cids.json --count 1
+# or
+./docker.sh --json ./metadata-cids.json --count 1
 ```
 
-Content of `all-cids.json` should be an array of CIDs:
+### Content of `metadata-cids.json`
+`metadata-cids.json` should be an array of dict with ID and CID:
 ```json
 [
-    "QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4",
-    "QmeBYxSPi4ryTjK72QkQe1Rw8hgA4Zh28c1BxWASVbAb16",
-    "QmeUT2SX9twp2re87dNefgDrUirR4uLAEoKUaN1mPzctg3"
-]
-```
-
-## Usage with Docker
-```shell
-./docker.sh --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
-```
-
-```shell
-./docker.sh --json ./all-cids.json --count 1
-```
-
-```json
-[
-    "QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4",
-    "QmeBYxSPi4ryTjK72QkQe1Rw8hgA4Zh28c1BxWASVbAb16",
-    "QmeUT2SX9twp2re87dNefgDrUirR4uLAEoKUaN1mPzctg3"
+    {
+        "ID": 1,
+        "CID": "Qmau1Sx2hLTkLmXsu2dD28yMZtL3Pzs2uKqP2MeHZPm93V"
+    },
+    {
+        "ID": 2,
+        "CID": "QmSyhgNxWWEQSVTjgxzd4F6xHJ2LLDFzaTdX6wV5qFzenX"
+    },
+    {
+        "ID": 3,
+        "CID": "QmYETprnpLtVXxydrzgCSrz6uC1swmS31rqupazdPWenE6"
+    }
 ]
 ```

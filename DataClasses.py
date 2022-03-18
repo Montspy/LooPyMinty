@@ -45,4 +45,9 @@ class NftData(TypedDict):
     royaltyAddress: str
     originalMinter: str
 
+class MintResult:
+    FAILED = -1
+    SUCCESS = 0
+    EXISTS = 1
+
 token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}
