@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
-from pydoc import describe
-import sys
 from os import path, makedirs, getenv
-from dotenv import load_dotenv
-
-load_dotenv()
-
+import sys
 sys.path.insert(0, path.abspath(path.join(path.dirname(__file__), "hello_loopring")))
 
+from dotenv import load_dotenv
 import argparse
 import asyncio
 import json
 from pprint import pprint
 import base58
+
+load_dotenv()
 
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
