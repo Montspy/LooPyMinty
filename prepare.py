@@ -35,7 +35,7 @@ def parse_args(cfg: Config):
     input_grp.add_argument('--file', help='Specify an input file', type=str)
     input_grp.add_argument('--idir', help='Specify an input directory', type=str)
     # parser.add_argument('--odir', help='Specify the output directory (default: idir/output)', type=str)
-    parser.add_argument('--metadata', help='Generate metadata templates instead', action='store_true')
+    parser.add_argument('--metadata', help='Generate metadata templates instead of the CIDs list', action='store_true')
     parser.add_argument('--empty', help='Empty the output directory before running', action='store_true')
 
     args = parser.parse_args()
