@@ -84,7 +84,7 @@ def parse_args():
 
     assert not (args.cid is None and args.json is None), f"Missing --cid or --json argument, please provide one"
 
-    if args.cid is not None and args.start or args.end:
+    if args.cid is not None and (args.start or args.end):
         print("Ignoring start and end arguments with single CID minting")
     if args.start is None:
         args.start = 1
@@ -211,7 +211,7 @@ async def mint_nft(nft_data_poseidon_hash: str, nft_id: str, eddsa_signature: st
         nft_data = await lms.getNftData(nftDatas=hex(nft_data_poseidon_hash))
         log(f"Nft data: {json.dumps(nft_data, indent=2)}")
         info['nft_data'] = nft_data
-        nft_exists = lms.last_status == 200 and nft_data is not None
+        nft_exists = (lms.last_status == 200) and (nft_data is not None) and (len(nft_data) > 0)
 
         if nft_exists:
             return MintResult.EXISTS
