@@ -115,7 +115,7 @@ class LoopringMintService(object):
 
         return off_chain_fee
 
-    async def getNftData(self, nftDatas: str) -> NftData:
+    async def getNftData(self, nftDatas: str) -> 'list[NftData]':
         params = {"nftDatas": nftDatas}
         headers = {}
         nft_data = None
@@ -126,7 +126,7 @@ class LoopringMintService(object):
             self.last_status = response.status
             
             response.raise_for_status()
-            nft_data = cast(NftData, parsed)
+            nft_data = cast('list[NftData]', parsed)
         except aiohttp.ClientError as client_err:
             print(f"Error getting nft datas: {client_err}")
             pprint(parsed)
