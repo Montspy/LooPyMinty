@@ -55,25 +55,25 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 ### Preparing metadata and CIDs
 ```shell
 ./docker.sh prepare -h
-usage: prepare.py [-h] (--file FILE | --idir IDIR) [--metadata] [--empty]
+usage: prepare.py [-h] (--file FILE | --idir IDIR) [--metadata]
 
 optional arguments:
   -h, --help   show this help message and exit
   --file FILE  Specify an input file
   --idir IDIR  Specify an input directory
   --metadata   Generate metadata templates instead of the CIDs list
-  --empty      Empty the output directory before running
 ```
 
 ### Minting
 ```shell
 > ./docker.sh mint -h
-usage: minter.py [-h] [-n AMOUNT] [-V] [--noprompt] [-c CID] [-j JSON] [-s START] [-e END]
+usage: minter.py [-h] [-n AMOUNT] [--testmint] [-V] [--noprompt] [-c CID] [-j JSON] [-s START] [-e END]
 
 optional arguments:
   -h, --help            show this help message and exit
   -n AMOUNT, --amount AMOUNT
                         Specify the mint amount per NFT
+  --testmint            Skips the mint step
   -V, --verbose         Verbose output
   --noprompt            Skip all user prompts
 
@@ -104,23 +104,31 @@ Once edited with all required information, we can generate the list of CIDs for 
 ```shell
 ./docker.sh prepare --idir ./output/metadata/
 ```
-The `output/cids.json` file will be created with a list of CIDs, one for each metadata file.
+The `output/metadata-cids.json` file will be created with a list of CIDs, one for each metadata file.
 **Every time** the metadata files in `output/metadata` are modified, you need to re-run this command to update the CID!
 
 Once you are ready to mint your collection, you can follow the following commands.
 
+### Batch mint NFTs
+
+Mint your whole collection with: 
+
+```shell
+./docker.sh mint --json ./output/metadata-cids.json --count 1
+# or directly:
+./docker.sh mintcollection --count 1
+# or mint only part of the collection with --start and --end to specify IDs
+./docker.sh mint --json ./output/metadata-cids.json --count 1 --start 1 --end 10
+# or:
+./docker.sh mintcollection --count 1 --start 1 --end 10
+```
+
 ### Mint a single NFT
+
+To mint a single NFT, you can still use:
 
 ```shell
 ./docker.sh mint --cid QmdmRoWVU4PV9ZCi1khprtX2YdAzV9UEFN5igZZGxPVAa4 --count 100
-```
-
-### Batch mint NFTs
-
-```shell
-./docker.sh mint --json ./output/cids.json --count 1
-# or directly:
-./docker.sh mintcollection --count 1
 ```
 
 ### Content of `metadata-cids.json`
