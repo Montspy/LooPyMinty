@@ -46,9 +46,6 @@ def parse_args(cfg: Config):
         cfg.input_dir = os.path.split(os.path.join(args.idir, ''))[0]   # Ensure no trailing '/'
     assert os.path.exists(cfg.input_dir), f'Input file/directory does not exist: {cfg.input_dir}'
 
-    # Empty
-    cfg.empty = args.empty
-
     # Output directory
     cfg.output_dir = './output'
     # LooPyGen specifics
