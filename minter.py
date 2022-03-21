@@ -15,7 +15,7 @@ load_dotenv()
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
 
-MINT_INFO_PATH = './'
+MINT_INFO_PATH = path.split(__file__)[0]
 cfg = {}
 secret = {} # Split to avoid leaking keys to console or logs
 
