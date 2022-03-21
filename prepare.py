@@ -34,9 +34,8 @@ def parse_args(cfg: Config):
     input_grp = parser.add_mutually_exclusive_group(required=True)
     input_grp.add_argument('--file', help='Specify an input file', type=str)
     input_grp.add_argument('--idir', help='Specify an input directory', type=str)
-    # parser.add_argument('--odir', help='Specify the output directory (default: idir/output)', type=str)
     parser.add_argument('--metadata', help='Generate metadata templates instead of the CIDs list', action='store_true')
-    parser.add_argument('--empty', help='Empty the output directory before running', action='store_true')
+    parser.add_argument("--loopygen", help=argparse.SUPPRESS, action='store_true')
 
     args = parser.parse_args()
     
@@ -52,10 +51,11 @@ def parse_args(cfg: Config):
 
     # Output directory
     cfg.output_dir = './output'
-    # cfg.output_dir = os.path.join(os.path.split(cfg.input_dir)[0], 'output') # Create 'output' dir next to cfg.input_dir
-    if cfg.empty and os.path.exists(cfg.output_dir):
-        if os.path.split(cfg.output_dir)[0] == 'output':
-            shutil.rmtree(cfg.output_dir)
+    # LooPyGen specifics
+    if args.loopygen:
+        cfg.output_dir = './generated/'
+    # END LooPyGen specifics
+
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
 
@@ -104,8 +104,8 @@ def main():
     
     # Output the cids.json file for minter
     if not cfg.metadata:
-        print(f'Generating cids.json file in: {cfg.output_dir}')
-        cids_path = os.path.join(cfg.output_dir, 'cids.json')
+        print(f'Generating metadata-cids.json file in: {cfg.output_dir}')
+        cids_path = os.path.join(cfg.output_dir, 'metadata-cids.json')
         with open(cids_path, 'w+') as f:
             all_cids = [{'ID': i, 'CID': c} for i,c in zip(ids, cids)]
             json.dump(all_cids, f, indent=4)

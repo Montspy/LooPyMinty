@@ -60,6 +60,7 @@ def parse_args():
     parser.add_argument("--testmint", help="Skips the mint step", action='store_true')
     parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
     parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
+    parser.add_argument("--loopygen", help=argparse.SUPPRESS, action='store_true')
 
     single_group = parser.add_argument_group(title="Single mint", description="Use these options to mint a single NFT:")
     single_group.add_argument("-c", "--cid", help="Specify the CIDv0 hash for the metadata to mint", type=str)
@@ -69,6 +70,11 @@ def parse_args():
     batch_group.add_argument("-s", "--start", help="Specify the the starting ID to batch mint", type=int)
     batch_group.add_argument("-e", "--end", help="Specify the last ID to batch mint", type=int)
     args = parser.parse_args()
+
+    # LooPyGen specifics
+    if args.json is None and args.cid is None and args.loopygen:
+        args.json = "./generated/metadata-cids.json"
+    # END LooPyGen specifics
 
     if args.json is not None:
         assert path.exists(args.json), f"JSON file not found: {args.json}"
