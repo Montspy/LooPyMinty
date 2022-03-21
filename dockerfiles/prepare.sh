@@ -1,4 +1,4 @@
 #!/bin/sh
 
 cd /loopyminty
-python LooPyMinty.py $@
+python3 prepare.py $@
