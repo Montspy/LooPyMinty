@@ -43,7 +43,8 @@ class LoopringMintService(object):
 
     async def getNextStorageId(self, apiKey: str, accountId: int, sellTokenId: int) -> StorageId:
         params = {"accountId": accountId,
-                  "sellTokenId": sellTokenId}
+                  "sellTokenId": sellTokenId,
+                  "maxNext": 1}
         headers = {"x-api-key": apiKey}
         storage_id = None
 
