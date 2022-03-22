@@ -82,7 +82,7 @@ def parse_args():
         assert args.cid[:2] == "Qm", f"Invalid cid: {args.cid}" # Support CIDv0 only
     
     if args.amount is None:
-        args.amount = int(getenv("AMOUNT")) or 1
+        args.amount = int(getenv("AMOUNT") or 1)
     
     if args.end is not None:
         assert args.start <= args.end, f"start cannot be greater than end: {args.start} > {args.end}"
