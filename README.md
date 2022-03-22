@@ -39,7 +39,6 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 
 | Variable               | Required for | Description                                  | Accepted Values         |
 |------------------------|--------------|----------------------------------------------|-------------------------|
-| LOOPRING_API_KEY       | Minting      | `apiKey`                                     | See your account export |
 | LOOPRING_PRIVATE_KEY   | Minting      | `privateKey`                                 | See your account export |
 | MINTER                 | All          | `address`                                    | See your account export |
 | ACCT_ID                | Minting      | `accountId`                                  | See your account export |
