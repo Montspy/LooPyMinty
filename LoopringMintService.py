@@ -1,5 +1,6 @@
 import aiohttp
-from typing import TypedDict, cast
+import urllib
+from typing import cast
 from pprint import pprint
 
 from DataClasses import *
@@ -32,6 +33,34 @@ class NFTEddsaSignHelper(EddsaSignHelper):
     def serialize_data(self, inputs):
         return [int(data) for data in inputs][:self.MAX_INPUTS]
 
+class UrlEddsaSignHelper(EddsaSignHelper):
+    def __init__(self, private_key, host=""):
+        self.host = host
+        super(UrlEddsaSignHelper, self).__init__(
+            poseidon_params = poseidon_params(SNARK_SCALAR_FIELD, 2, 6, 53, b'poseidon', 5, security_target=128),
+            private_key = private_key
+        )
+    
+    def hash(self, structure_data):
+        serialized_data = self.serialize_data(structure_data)
+        hasher = hashlib.sha256()
+        hasher.update(serialized_data.encode('utf-8'))
+        msgHash = int(hasher.hexdigest(), 16) % SNARK_SCALAR_FIELD
+        # print(f"serialized_data = {serialized_data}, prehash = {hasher.hexdigest()}, msgHash = {hex(msgHash)}")
+        return msgHash
+
+    def serialize_data(self, request):
+        method = request['method']
+        url = urllib.parse.quote(self.host + request['path'], safe='')
+        if method in ["GET", "DELETE"]:
+            data = urllib.parse.quote("&".join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in request['params'].items()]), safe='')
+        elif method in ["POST", "PUT"]:
+            data = urllib.parse.quote(json.dumps(request['data']), safe='')
+        else:
+            raise Exception(f"Unknown request method {method}")
+            
+        return "&".join([method, url, data])
+
 class LoopringMintService(object):
     base_url: str = "https://api3.loopring.io"
     session: aiohttp.ClientSession
@@ -40,6 +69,39 @@ class LoopringMintService(object):
 
     def __init__(self) -> None:
         self.session = aiohttp.ClientSession(base_url=self.base_url)
+
+    async def getUserApiKey(self, accountId: int, privateKey: str) -> ApiKeyResponse:
+        params = {"accountId": accountId}
+        request = {
+            "method": "GET",
+            "path": "/api/v3/apiKey",
+            "params": params,
+            "data": {}
+        }
+
+        signer = UrlEddsaSignHelper(privateKey, self.base_url)
+        eddsaSignature = signer.sign(request)
+
+        headers = {"x-api-sig": eddsaSignature}
+        api_key_resp = None
+
+        try:
+            response = await self.session.get(request["path"], params=request["params"], headers=headers)
+            parsed = await response.json()
+            self.last_status = response.status
+
+            response.raise_for_status()
+            api_key_resp = cast(ApiKeyResponse, parsed)
+        except aiohttp.ClientError as client_err:
+            print(f"Error getting user api key: {client_err}")
+            pprint(parsed)
+            self.last_error = parsed
+        except Exception as err:
+            print(f"An error ocurred getting user api key: {err}")
+            pprint(parsed)
+            self.last_error = parsed
+
+        return api_key_resp
 
     async def getNextStorageId(self, apiKey: str, accountId: int, sellTokenId: int) -> StorageId:
         params = {"accountId": accountId,
