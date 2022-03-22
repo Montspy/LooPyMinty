@@ -9,6 +9,9 @@ class MintResponseData(TypedDict):
     accountId: int
     storageId: int
 
+class ApiKeyResponse(TypedDict):
+    apiKey: str
+
 class CounterFactualNft(TypedDict):
     tokenAddress: str
 

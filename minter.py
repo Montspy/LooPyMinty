@@ -30,7 +30,6 @@ def plog(object, **kwds):
 
 # Build config dictionnary
 def setup():
-    secret['loopringApiKey']     = getenv("LOOPRING_API_KEY")
     secret['loopringPrivateKey'] = getenv("LOOPRING_PRIVATE_KEY")
     cfg['minterAddress']         = getenv("MINTER")
     cfg['accountId']             = int(getenv("ACCT_ID"))
@@ -42,7 +41,6 @@ def setup():
     cfg['exchange']              = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
 
     assert secret['loopringPrivateKey'] is not None, "Invalid private key (LOOPRING_PRIVATE_KEY)"
-    assert secret['loopringApiKey'] is not None, "Missing API key (LOOPRING_API_KEY)"
     assert cfg['minterAddress'] is not None, "Missing minter address (MINTER)"
     assert cfg['accountId'] is not None, "Missing account ID (ACCT_ID)"
     assert cfg['nftType'] in [0, 1], f"Incorrect NFT type (NFT_TYPE): {cfg['nftType']}"
@@ -131,6 +129,16 @@ def prompt_yes_no(prompt: str, default: str=None):
                 return True
             elif default == "no":
                 return False
+
+async def get_user_api_key():
+    async with LoopringMintService() as lms:
+        # Getting the user api key
+        api_key_resp = await lms.getUserApiKey(accountId=cfg['accountId'], privateKey=secret['loopringPrivateKey'])
+        # log(f"User API key: {json.dumps(api_key_resp, indent=2)}")   # DO NOT LOG
+        if api_key_resp is None:
+            sys.exit("Failed to obtain user api key")
+
+    secret['loopringApiKey'] = api_key_resp['apiKey']
 
 async def get_offchain_parameters():
     async with LoopringMintService() as lms:
@@ -304,9 +312,16 @@ async def main():
             mint_info.append(info)
         assert len(filtered_cids) > 0, f"Collection does not contain NFT IDs within start/end arguments provided {args.start}/{args.end}"
 
+        # Get user API key
+        print("Getting user API key... ", end='')
+        await get_user_api_key()
+        print("done!")
+
         # Get storage id, token address and offchain fee
+        print("Getting offchain parameters... ", end='')
         offchain_parameters = await get_offchain_parameters()
         info['offchain_parameters'] = offchain_parameters
+        print("done!")
 
         # Estimate fees and get user approval
         if not approved_fees_prompt:
