@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 import os
 import sys
-from time import time
-from typing import Coroutine
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "hello_loopring")))
 
 from dotenv import load_dotenv
@@ -11,8 +9,6 @@ import argparse
 import asyncio
 import json
 import base58
-
-load_dotenv()
 
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
@@ -59,7 +55,6 @@ async def load_config(args, paths: Struct):
         with open(paths.traits) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
-        print(os.path.abspath(paths.config))
         with open(paths.config) as f:
             config_json = json.load(f)
         loopygen_cfg = Struct(config_json)
