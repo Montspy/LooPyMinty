@@ -46,7 +46,6 @@ class UrlEddsaSignHelper(EddsaSignHelper):
         hasher = hashlib.sha256()
         hasher.update(serialized_data.encode('utf-8'))
         msgHash = int(hasher.hexdigest(), 16) % SNARK_SCALAR_FIELD
-        # print(f"serialized_data = {serialized_data}, prehash = {hasher.hexdigest()}, msgHash = {hex(msgHash)}")
         return msgHash
 
     def serialize_data(self, request):
@@ -210,6 +209,7 @@ class LoopringMintService(object):
             minterAddress: str,
             toAccountId: int,
             toAddress: str,
+            royaltyAddress: str,
             nftType: int,
             tokenAddress: str,
             nftId: str,
@@ -245,6 +245,10 @@ class LoopringMintService(object):
                       "nftBaseUri": counterFactualNftInfo['nftBaseUri']
                   },
                   "eddsaSignature": eddsaSignature}
+        
+        if royaltyAddress:
+            params["royaltyAddress"] = royaltyAddress
+        
         headers = {"x-api-key": apiKey}
         nft_mint_data = None
 
