@@ -37,14 +37,14 @@ def load_config(args):
             traits_json = json.load(f)
         traits =  Struct(traits_json)
         cfg.minterAddress     = traits.mint_address
-        cfg.royaltyAddres     = traits.royalty_address
+        cfg.royaltyAddress    = traits.royalty_address
         cfg.accountId         = int(os.getenv("ACCT_ID"))
         cfg.nftType           = int(os.getenv("NFT_TYPE"))
         cfg.royaltyPercentage = traits.royalty_percentage
         cfg.maxFeeTokenId     = int(os.getenv("FEE_TOKEN_ID"))
     else:
         cfg.minterAddress     = os.getenv("MINTER")
-        cfg.royaltyAddres     = os.getenv("ROYALTY_ADDRESS")
+        cfg.royaltyAddress    = os.getenv("ROYALTY_ADDRESS")
         cfg.accountId         = int(os.getenv("ACCT_ID"))
         cfg.nftType           = int(os.getenv("NFT_TYPE"))
         cfg.royaltyPercentage = int(os.getenv("ROYALTY_PERCENTAGE"))
