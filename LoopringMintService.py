@@ -46,7 +46,6 @@ class UrlEddsaSignHelper(EddsaSignHelper):
         hasher = hashlib.sha256()
         hasher.update(serialized_data.encode('utf-8'))
         msgHash = int(hasher.hexdigest(), 16) % SNARK_SCALAR_FIELD
-        # print(f"serialized_data = {serialized_data}, prehash = {hasher.hexdigest()}, msgHash = {hex(msgHash)}")
         return msgHash
 
     def serialize_data(self, request):
@@ -67,8 +66,82 @@ class LoopringMintService(object):
     last_status: int
     last_error: dict
 
-    def __init__(self) -> None:
-        self.session = aiohttp.ClientSession(base_url=self.base_url)
+    def __init__(self, timeout = None) -> None:
+        if timeout:
+            self.session = aiohttp.ClientSession(base_url=self.base_url, timeout=timeout)
+        else:
+            self.session = aiohttp.ClientSession(base_url=self.base_url)
+
+    async def resolveENS(self, ens: str) -> str:
+        params = {"fullName": ens}
+        headers = {}
+        address_resp = None
+        print(f"Resolving ENS {ens}... ", end='')
+
+        try:
+            response = await self.session.get("/api/wallet/v3/resolveEns", params=params, headers=headers)
+            parsed = await response.json()
+            self.last_status = response.status
+
+            response.raise_for_status()
+            address_resp = parsed["data"]
+        except aiohttp.ClientError as client_err:
+            print(f"Error getting user api key: {client_err}")
+            pprint(parsed)
+            self.last_error = parsed
+        except Exception as err:
+            print(f"An error ocurred getting user api key: {err}")
+            pprint(parsed)
+            self.last_error = parsed
+
+        print(f"done!")
+        return address_resp
+
+    async def getAccountId(self, address: str) -> str:
+        params = {"owner": address}
+        headers = {}
+        account_id = None
+
+        try:
+            response = await self.session.get("/api/v3/account", params=params, headers=headers)
+            parsed = await response.json()
+            self.last_status = response.status
+
+            response.raise_for_status()
+            account_id = parsed["accountId"]
+        except aiohttp.ClientError as client_err:
+            print(f"Error getting user api key: {client_err}")
+            pprint(parsed)
+            self.last_error = parsed
+        except Exception as err:
+            print(f"An error ocurred getting user api key: {err}")
+            pprint(parsed)
+            self.last_error = parsed
+
+        return account_id
+
+    async def getAccountAddress(self, account_id: int) -> str:
+        params = {"accountId": account_id}
+        headers = {}
+        address_resp = None
+
+        try:
+            response = await self.session.get("/api/v3/account", params=params, headers=headers)
+            parsed = await response.json()
+            self.last_status = response.status
+
+            response.raise_for_status()
+            address_resp = parsed["owner"]
+        except aiohttp.ClientError as client_err:
+            print(f"Error getting user api key: {client_err}")
+            pprint(parsed)
+            self.last_error = parsed
+        except Exception as err:
+            print(f"An error ocurred getting user api key: {err}")
+            pprint(parsed)
+            self.last_error = parsed
+
+        return address_resp
 
     async def getUserApiKey(self, accountId: int, privateKey: str) -> ApiKeyResponse:
         params = {"accountId": accountId}
@@ -210,6 +283,7 @@ class LoopringMintService(object):
             minterAddress: str,
             toAccountId: int,
             toAddress: str,
+            royaltyAddress: str,
             nftType: int,
             tokenAddress: str,
             nftId: str,
@@ -245,6 +319,10 @@ class LoopringMintService(object):
                       "nftBaseUri": counterFactualNftInfo['nftBaseUri']
                   },
                   "eddsaSignature": eddsaSignature}
+
+        if royaltyAddress:
+            params["royaltyAddress"] = royaltyAddress
+        
         headers = {"x-api-key": apiKey}
         nft_mint_data = None
 
