@@ -79,10 +79,10 @@ async def load_config(args):
     
     # Resolve ENS, get account_id and ETH address
     cfg.minterAccount, cfg.minterAddress = await retry_async(get_account_info, cfg.minter, retries=3)
-    assert cfg.minterAddress and cfg.minterAccount, f"Invalid minter: {cfg.minter} aka {cfg.minterAddress} (account ID {cfg.minterAccount}"
+    assert cfg.minterAddress and cfg.minterAccount, f"Invalid minter: {cfg.minter} aka {cfg.minterAddress} (account ID {cfg.minterAccount})"
     if cfg.royalty:
         cfg.royaltyAccount, cfg.royaltyAddress = await retry_async(get_account_info, cfg.royalty, retries=3)
-        assert cfg.royaltyAddress and cfg.royaltyAccount, f"Invalid royalt account: {cfg.royalty} aka {cfg.royaltyAddress} (account ID {cfg.royaltyAddress}"
+        assert cfg.royaltyAddress and cfg.royaltyAccount, f"Invalid royalty account: {cfg.royalty} aka {cfg.royaltyAddress} (account ID {cfg.royaltyAddress})"
 
     assert secret.loopringPrivateKey, "Invalid private key (LOOPRING_PRIVATE_KEY)"
     assert cfg.nftType in [0, 1], f"Incorrect NFT type (NFT_TYPE): {cfg.nftType}"
