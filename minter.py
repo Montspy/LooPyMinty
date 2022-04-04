@@ -51,27 +51,31 @@ async def eternity(s: float):
     await asyncio.sleep(s)
 
 # Build config dictionnary
-async def load_config(args):
+async def load_config(args, paths: Struct):
     cfg = Struct()
     secret = Struct()   # Split to avoid leaking keys to console or logs
-    secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
 
     if args.loopygen and args.name:
-        traits_path = os.path.join("./images", args.name, "traits.json")
-        with open(traits_path) as f:
+        with open(paths.traits) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
-        cfg.minter            = traits.mint_address
-        cfg.royalty           = traits.royalty_address
-        cfg.nftType           = int(os.getenv("NFT_TYPE"))
-        cfg.royaltyPercentage = traits.royalty_percentage
-        cfg.maxFeeTokenId     = int(os.getenv("FEE_TOKEN_ID"))
+        print(os.path.abspath(paths.config))
+        with open(paths.config) as f:
+            config_json = json.load(f)
+        loopygen_cfg = Struct(config_json)
+        secret.loopringPrivateKey = loopygen_cfg.private_key
+        cfg.minter                = loopygen_cfg.minter
+        cfg.royalty               = traits.royalty_address
+        cfg.nftType               = int(loopygen_cfg.nft_type)
+        cfg.royaltyPercentage     = int(traits.royalty_percentage)
+        cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
     else:
-        cfg.minter            = os.getenv("MINTER")
-        cfg.royalty           = os.getenv("ROYALTY_ADDRESS")
-        cfg.nftType           = int(os.getenv("NFT_TYPE"))
-        cfg.royaltyPercentage = int(os.getenv("ROYALTY_PERCENTAGE"))
-        cfg.maxFeeTokenId     = int(os.getenv("FEE_TOKEN_ID"))
+        secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
+        cfg.minter                = os.getenv("MINTER")
+        cfg.royalty               = os.getenv("ROYALTY_ADDRESS")
+        cfg.nftType               = int(os.getenv("NFT_TYPE"))
+        cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
+        cfg.maxFeeTokenId         = int(os.getenv("FEE_TOKEN_ID"))
 
     cfg.validUntil            = 1700000000
     cfg.nftFactory            = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
@@ -329,6 +333,8 @@ async def main():
     # Generate paths
     paths = Struct()
     paths.mint_info = os.path.join(os.path.dirname(__file__), "mint-info.json")
+    paths.traits = os.path.join("./images", args.name, "traits.json")
+    paths.config = "./config.json"
 
     # Parse all cids from JSON or command line
     if args.json:
@@ -348,7 +354,7 @@ async def main():
     try:
         filtered_cids = []  # CIDs filtered based on start/end
 
-        cfg, secret = await load_config(args)
+        cfg, secret = await load_config(args, paths)
         log("config dump:")
         plog(cfg)
         mint_info.append({'cfg': cfg})
