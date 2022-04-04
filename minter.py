@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import os
 import sys
+from time import time
+from typing import Coroutine
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "hello_loopring")))
 
 from dotenv import load_dotenv
@@ -15,7 +17,6 @@ load_dotenv()
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
 
-
 # Verbose output
 VERBOSE = False
 def log(*objects, **kwds):
@@ -25,8 +26,32 @@ def plog(object, **kwds):
     if VERBOSE:
         pprint(object, **kwds)
 
+async def get_account_info(account: str):
+    async with LoopringMintService() as lms:
+        account = str(account).strip()
+        if account[:2] == "0x":
+            address = account
+            id = await lms.getAccountId(address)
+        elif account[-4:] == ".eth":
+            address = await lms.resolveENS(account)
+            id = await lms.getAccountId(address)
+        else:
+            id = int(account)
+            address = await lms.getAccountAddress(id)
+    return id, address
+
+async def retry_async(coro, *args, timeout: float=3, retries: int=3, **kwds):
+    for attempts in range(retries):
+        try:
+            return await asyncio.wait_for(coro(*args, **kwds), timeout=timeout)
+        except asyncio.TimeoutError:
+            print("Retrying... " + str(attempts))
+
+async def eternity(s: float):
+    await asyncio.sleep(s)
+
 # Build config dictionnary
-def load_config(args):
+async def load_config(args):
     cfg = Struct()
     secret = Struct()   # Split to avoid leaking keys to console or logs
     secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
@@ -36,16 +61,14 @@ def load_config(args):
         with open(traits_path) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
-        cfg.minterAddress     = traits.mint_address
-        cfg.royaltyAddress    = traits.royalty_address
-        cfg.accountId         = int(os.getenv("ACCT_ID"))
+        cfg.minter            = traits.mint_address
+        cfg.royalty           = traits.royalty_address
         cfg.nftType           = int(os.getenv("NFT_TYPE"))
         cfg.royaltyPercentage = traits.royalty_percentage
         cfg.maxFeeTokenId     = int(os.getenv("FEE_TOKEN_ID"))
     else:
-        cfg.minterAddress     = os.getenv("MINTER")
-        cfg.royaltyAddress    = os.getenv("ROYALTY_ADDRESS")
-        cfg.accountId         = int(os.getenv("ACCT_ID"))
+        cfg.minter            = os.getenv("MINTER")
+        cfg.royalty           = os.getenv("ROYALTY_ADDRESS")
         cfg.nftType           = int(os.getenv("NFT_TYPE"))
         cfg.royaltyPercentage = int(os.getenv("ROYALTY_PERCENTAGE"))
         cfg.maxFeeTokenId     = int(os.getenv("FEE_TOKEN_ID"))
@@ -53,10 +76,15 @@ def load_config(args):
     cfg.validUntil            = 1700000000
     cfg.nftFactory            = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
     cfg.exchange              = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
+    
+    # Resolve ENS, get account_id and ETH address
+    cfg.minterAccount, cfg.minterAddress = await retry_async(get_account_info, cfg.minter, retries=3)
+    assert cfg.minterAddress and cfg.minterAccount, f"Invalid minter: {cfg.minter} aka {cfg.minterAddress} (account ID {cfg.minterAccount}"
+    if cfg.royalty:
+        cfg.royaltyAccount, cfg.royaltyAddress = await retry_async(get_account_info, cfg.royalty, retries=3)
+        assert cfg.royaltyAddress and cfg.royaltyAccount, f"Invalid royalt account: {cfg.royalty} aka {cfg.royaltyAddress} (account ID {cfg.royaltyAddress}"
 
     assert secret.loopringPrivateKey, "Invalid private key (LOOPRING_PRIVATE_KEY)"
-    assert cfg.minterAddress, "Missing minter address (MINTER)"
-    assert cfg.accountId, "Missing account ID (ACCT_ID)"
     assert cfg.nftType in [0, 1], f"Incorrect NFT type (NFT_TYPE): {cfg.nftType}"
     assert cfg.royaltyPercentage in range(0, 11), f"Incorrect royalty percentage [0-10] (ROYALTY_PERCENTAGE): {cfg.royaltyPercentage}"
     assert cfg.maxFeeTokenId, "Missing fee token ID (FEE_TOKEN_ID)"
@@ -158,7 +186,7 @@ def prompt_yes_no(prompt: str, default: str=None):
 async def get_user_api_key(cfg, secret):
     async with LoopringMintService() as lms:
         # Getting the user api key
-        api_key_resp = await lms.getUserApiKey(accountId=cfg.accountId, privateKey=secret.loopringPrivateKey)
+        api_key_resp = await lms.getUserApiKey(accountId=cfg.minterAccount, privateKey=secret.loopringPrivateKey)
         # log(f"User API key: {json.dumps(api_key_resp, indent=2)}")   # DO NOT LOG
         if api_key_resp is None:
             sys.exit("Failed to obtain user api key")
@@ -169,7 +197,7 @@ async def get_offchain_parameters(cfg, secret):
     async with LoopringMintService() as lms:
         parameters = {}
         # Getting the storage id
-        storage_id = await lms.getNextStorageId(apiKey=secret.loopringApiKey, accountId=cfg.accountId, sellTokenId=cfg.maxFeeTokenId)
+        storage_id = await lms.getNextStorageId(apiKey=secret.loopringApiKey, accountId=cfg.minterAccount, sellTokenId=cfg.maxFeeTokenId)
         log(f"Storage id: {json.dumps(storage_id, indent=2)}")
         if storage_id is None:
             sys.exit("Failed to obtain storage id")
@@ -187,7 +215,7 @@ async def get_offchain_parameters(cfg, secret):
         parameters['counterfactual_nft'] = counterfactual_nft
 
         # Getting the offchain fee
-        off_chain_fee = await lms.getOffChainFee(apiKey=secret.loopringApiKey, accountId=cfg.accountId, requestType=9, tokenAddress=counterfactual_nft['tokenAddress'])
+        off_chain_fee = await lms.getOffChainFee(apiKey=secret.loopringApiKey, accountId=cfg.minterAccount, requestType=9, tokenAddress=counterfactual_nft['tokenAddress'])
         log(f"Offchain fee:  {json.dumps(off_chain_fee['fees'][cfg.maxFeeTokenId], indent=2)}")
         if off_chain_fee is None:
             sys.exit("Failed to obtain offchain fee")
@@ -217,15 +245,15 @@ async def get_hashes_and_sign(cfg, secret, cid: str, amount: int, offchain_param
     hasher = NFTDataEddsaSignHelper()
     nft_data_poseidon_hash = hasher.hash(inputs)
     # plog(inputs)
-    log(f"Hashed NFT data: 0x{0:0{1}x}".format(nft_data_poseidon_hash, 64))
+    log("Hashed NFT data: 0x{0:0{1}x}".format(nft_data_poseidon_hash, 64))
     info['nft_data_poseidon_hash'] = "0x{0:0{1}x}".format(nft_data_poseidon_hash, 64)
 
     # Generate the poseidon hash for the remaining data
     # https://github.com/Loopring/loopring_sdk/blob/692d372165b5ea0d760e33e177d9003cc0dfb0f7/src/api/sign/sign_tools.ts#L899
     inputs = [
         int(cfg.exchange, 16),
-        cfg.accountId,   # minterId
-        cfg.accountId,   # toAccountId
+        cfg.minterAccount,   # minterId
+        cfg.minterAccount,   # toAccountId
         nft_data_poseidon_hash,
         amount,
         cfg.maxFeeTokenId,
@@ -236,7 +264,7 @@ async def get_hashes_and_sign(cfg, secret, cid: str, amount: int, offchain_param
     hasher = NFTEddsaSignHelper(private_key=secret.loopringPrivateKey)
     nft_poseidon_hash = hasher.hash(inputs)
     # plog(inputs)
-    log(f"Hashed NFT payload: 0x{0:0{1}x}".format(nft_poseidon_hash, 64))
+    log("Hashed NFT payload: 0x{0:0{1}x}".format(nft_poseidon_hash, 64))
     info['nft_poseidon_hash'] = "0x{0:0{1}x}".format(nft_poseidon_hash, 64)
 
     eddsa_signature = hasher.sign(inputs)
@@ -263,9 +291,9 @@ async def mint_nft(cfg, secret, nft_data_poseidon_hash: str, nft_id: str, amount
         nft_mint_response = await lms.mintNft(
             apiKey=secret.loopringApiKey,
             exchange=cfg.exchange,
-            minterId=cfg.accountId,
+            minterId=cfg.minterAccount,
             minterAddress=cfg.minterAddress,
-            toAccountId=cfg.accountId,
+            toAccountId=cfg.minterAccount,
             toAddress=cfg.minterAddress,
             royaltyAddress=cfg.royaltyAddress,
             nftType=cfg.nftType,
@@ -320,7 +348,7 @@ async def main():
     try:
         filtered_cids = []  # CIDs filtered based on start/end
 
-        cfg, secret = load_config(args)
+        cfg, secret = await load_config(args)
         log("config dump:")
         plog(cfg)
         mint_info.append({'cfg': cfg})
