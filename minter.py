@@ -328,8 +328,9 @@ async def main():
     # Generate paths
     paths = Struct()
     paths.mint_info = os.path.join(os.path.dirname(__file__), "mint-info.json")
-    paths.traits = os.path.join("./images", args.name, "traits.json")
     paths.config = "./config.json"
+    if args.loopygen:
+        paths.traits = os.path.join("./images", args.name, "traits.json")
 
     # Parse all cids from JSON or command line
     if args.json:
