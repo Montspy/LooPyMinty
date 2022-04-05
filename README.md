@@ -39,12 +39,11 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 
 | Variable               | Required for | Description                                  | Accepted Values         |
 |------------------------|--------------|----------------------------------------------|-------------------------|
-| LOOPRING_PRIVATE_KEY   | Minting      | `privateKey`                                 | See your account export |
-| MINTER                 | All          | `address`                                    | See your account export |
-| ACCT_ID                | Minting      | `accountId`                                  | See your account export |
-| NFT_TYPE               | Minting      | EIP1155 or EIP721                            | 0 (1155) or 1 (721)     |
-| ROYALTY_PERCENTAGE     | All          | Percentage for royalty payouts to the minter | 0 - 10                  |
-| FEE_TOKEN_ID           | Minting      | ETH or LRC                                   | 0 (ETH) or 1 (LRC)      |
+| LOOPRING_PRIVATE_KEY   | Mint      | `privateKey`                                 | See your account export !DO NOT SHARE WITH ANYONE! |
+| NFT_TYPE               | Mint      | EIP1155 or EIP721                            | 0 (1155) or 1 (721)     |
+| FEE_TOKEN_ID           | Mint      | ETH or LRC                                   | 0 (ETH) or 1 (LRC)      |
+| MINTER                 | Mint + Prepare | `address`                                    | L2 address, account ID or ENS |
+| ROYALTY_PERCENTAGE     | Mint + Prepare | Percentage for royalty payouts to the minter | 0 - 10                  |
 | COLLECTION_NAME        | No           | The pretty name of your NFT collection       | Text                    |
 | COLLECTION_DESCRIPTION | No           | A description of the NFT collection          | Text                    |
 | ARTIST                 | No           | The name of the NFT artist                   | Text                    |
@@ -53,14 +52,15 @@ Copy `.env.example` and rename it to `.env`, then edit the fields to match your 
 
 ### Preparing metadata and CIDs
 ```shell
-./docker.sh prepare -h
-usage: prepare.py [-h] (--file FILE | --idir IDIR) [--metadata]
+> ./docker.sh prepare -h
+usage: prepare.py [-h] (--file FILE | --idir IDIR) [--metadata] [--overwrite]
 
 optional arguments:
   -h, --help   show this help message and exit
   --file FILE  Specify an input file
   --idir IDIR  Specify an input directory
   --metadata   Generate metadata templates instead of the CIDs list
+  --overwrite  Overwrite the metadata files and all metadata fields
 ```
 
 ### Minting
@@ -94,7 +94,7 @@ Batch mint:
 ### Generate metadata templates for an NFT collection
 
 ```shell
-./docker.sh prepare --idir ./images/ --metadata --empty
+./docker.sh prepare --idir ./images/ --metadata --overwrite
 ```
 `./images/` should contain only the images to prepare metadata templates for.
 The `output/metadata` directory will be created with metadata JSON files for each image.
@@ -114,12 +114,10 @@ Mint your whole collection with:
 
 ```shell
 ./docker.sh mint --json ./output/metadata-cids.json --count 1
-# or directly:
-./docker.sh mintcollection --count 1
-# or mint only part of the collection with --start and --end to specify IDs
+```
+Or mint only part of the collection with --start and --end to specify IDs
+```shell
 ./docker.sh mint --json ./output/metadata-cids.json --count 1 --start 1 --end 10
-# or:
-./docker.sh mintcollection --count 1 --start 1 --end 10
 ```
 
 ### Mint a single NFT
