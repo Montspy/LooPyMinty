@@ -83,10 +83,10 @@ async def load_config(args, paths: Struct):
         cfg.royaltyAccount, cfg.royaltyAddress = await retry_async(get_account_info, cfg.royalty, retries=3)
         assert cfg.royaltyAddress and cfg.royaltyAccount, f"Invalid royalty account: {cfg.royalty} aka {cfg.royaltyAddress} (account ID {cfg.royaltyAddress})"
 
-    assert secret.loopringPrivateKey, "Invalid private key (LOOPRING_PRIVATE_KEY)"
-    assert cfg.nftType in [0, 1], f"Incorrect NFT type (NFT_TYPE): {cfg.nftType}"
-    assert cfg.royaltyPercentage in range(0, 11), f"Incorrect royalty percentage [0-10] (ROYALTY_PERCENTAGE): {cfg.royaltyPercentage}"
-    assert cfg.maxFeeTokenId, "Missing fee token ID (FEE_TOKEN_ID)"
+    assert secret.loopringPrivateKey, "Missing private key (LOOPRING_PRIVATE_KEY)"
+    assert cfg.nftType in [0, 1], f"Invalid NFT type (NFT_TYPE): {cfg.nftType}"
+    assert cfg.royaltyPercentage in range(0, 11), f"Invalid royalty percentage [0-10] (ROYALTY_PERCENTAGE): {cfg.royaltyPercentage}"
+    assert cfg.maxFeeTokenId in range(len(token_decimals)), f"Missing or invalid fee token ID (FEE_TOKEN_ID): {cfg.maxFeeTokenId}"
 
     if secret.loopringPrivateKey[:2] != "0x":
         secret.loopringPrivateKey = "0x{0:0{1}x}".format(int(secret.loopringPrivateKey), 64)
@@ -339,8 +339,8 @@ async def main():
     elif args.cid:
         all_cids = [{"ID": 1, "CID": args.cid}]
 
-    if not os.path.exists(paths.mint_info):
-        os.makedirs(paths.mint_info)
+    if not os.path.exists(os.path.dirname(paths.mint_info)):
+        os.makedirs(os.path.dirname(paths.mint_info))
 
     mint_info = []
     mint_info.append({'args': vars(args)})
@@ -371,7 +371,10 @@ async def main():
             info['skipped'] = False
 
             mint_info.append(info)
-        assert len(filtered_cids) > 0, f"Collection does not contain NFT IDs within start/end arguments provided {args.start}/{args.end}"
+
+        if len(filtered_cids) == 0:
+            print(f"Collection does not contain NFT IDs within start/end arguments provided, nothing to mint ({args.start}/{args.end})")
+            sys.exit(0)
 
         # Get user API key
         print("Getting user API key... ", end='')
