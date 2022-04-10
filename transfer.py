@@ -149,11 +149,11 @@ async def get_user_api_key(cfg, secret):
 
     secret.loopringApiKey = api_key_resp['apiKey']
 
-async def get_offchain_parameters(cfg, secret):
+async def get_offchain_parameters(cfg, secret, nftTokenId):
     async with LoopringMintService() as lms:
         parameters = {}
         # Getting the storage id
-        storage_id = await lms.getNextStorageId(apiKey=secret.loopringApiKey, accountId=cfg.fromAccount, sellTokenId=0)
+        storage_id = await lms.getNextStorageId(apiKey=secret.loopringApiKey, accountId=cfg.fromAccount, sellTokenId=nftTokenId)
         log(f"Storage id: {json.dumps(storage_id, indent=2)}")
         if storage_id is None:
             sys.exit("Failed to obtain storage id")
@@ -334,16 +334,16 @@ async def main():
         await get_user_api_key(cfg, secret)
         print("done!")
 
-        # Get storage id, token address and offchain fee
-        print("Getting offchain parameters... ", end='')
-        offchain_parameters = await get_offchain_parameters(cfg, secret)
-        transfer_info.append({'offchain_parameters': offchain_parameters})
-        print("done!")
-
         # Get nft balance
         print("Getting nft info... ", end='')
         nft_info = await get_nft_info(cfg, secret, args)
         transfer_info.append({'nft_info': nft_info})
+        print("done!")
+
+        # Get storage id, token address and offchain fee
+        print("Getting offchain parameters... ", end='')
+        offchain_parameters = await get_offchain_parameters(cfg, secret, nft_info['tokenId'])
+        transfer_info.append({'offchain_parameters': offchain_parameters})
         print("done!")
 
         # Estimate fees and get user approval
