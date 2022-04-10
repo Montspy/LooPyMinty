@@ -2,12 +2,16 @@ import aiohttp
 import urllib
 from typing import cast
 from pprint import pprint
+import os
 
 from DataClasses import *
 
 from hello_loopring.sdk.ethsnarks.field import SNARK_SCALAR_FIELD
 from hello_loopring.sdk.ethsnarks.poseidon import poseidon_params
 from hello_loopring.sdk.sig_utils.eddsa_utils import *
+from hello_loopring.sdk.sig_utils.ecdsa_utils import EIP712, generateTransferEIP712Hash
+from py_eth_sig_utils import utils as sig_utils
+from py_eth_sig_utils.signing import v_r_s_to_signature
 
 class NFTDataEddsaSignHelper(EddsaSignHelper):
     MAX_INPUTS: int = 6
@@ -15,6 +19,18 @@ class NFTDataEddsaSignHelper(EddsaSignHelper):
     def __init__(self, private_key="0x1"):
         super(NFTDataEddsaSignHelper, self).__init__(
             poseidon_params = poseidon_params(SNARK_SCALAR_FIELD, self.MAX_INPUTS+1, 6, 52, b'poseidon', 5, security_target=128),
+            private_key = private_key
+        )
+
+    def serialize_data(self, inputs):
+        return [int(data) for data in inputs][:self.MAX_INPUTS]
+
+class NFTTransferEddsaSignHelper(EddsaSignHelper):
+    MAX_INPUTS: int = 12
+
+    def __init__(self, private_key="0x1"):
+        super(NFTTransferEddsaSignHelper, self).__init__(
+            poseidon_params = poseidon_params(SNARK_SCALAR_FIELD, self.MAX_INPUTS+1, 6, 53, b'poseidon', 5, security_target=128),
             private_key = private_key
         )
 
@@ -175,6 +191,46 @@ class LoopringMintService(object):
             self.last_error = parsed
 
         return api_key_resp
+
+    async def getUserNftBalance(self, apiKey: str, accountId: int) -> NftBalance:
+
+        end_reached = False
+        offset = 0
+        limit = 5
+
+        nft_balance = NftBalance({'totalNum': 0, 'data': []})
+        while not end_reached:
+            params = {"accountId": accountId,
+                    "limit": limit,
+                    "offset": offset}
+            headers = {"x-api-key": apiKey}
+            nft_balance_limit = NftBalance({'totalNum': 0, 'data': []})
+
+            try:
+                response = await self.session.get("/api/v3/user/nft/balances", params=params, headers=headers)
+                parsed = await response.json()
+                self.last_status = response.status
+
+                response.raise_for_status()
+                nft_balance_limit = cast(NftBalance, parsed)
+
+                end_reached = (limit + offset) >= nft_balance_limit['totalNum']
+
+                offset = offset + limit
+                nft_balance['data'].extend(nft_balance_limit['data'])
+                nft_balance['totalNum'] += len(nft_balance_limit['data'])
+            except aiohttp.ClientError as client_err:
+                print(f"Error getting storage id: {client_err}")
+                pprint(parsed)
+                self.last_error = parsed
+                break
+            except Exception as err:
+                print(f"An error ocurred getting storage id: {err}")
+                pprint(parsed)
+                self.last_error = parsed
+                break
+
+        return nft_balance
 
     async def getNextStorageId(self, apiKey: str, accountId: int, sellTokenId: int) -> StorageId:
         params = {"accountId": accountId,
@@ -345,6 +401,101 @@ class LoopringMintService(object):
             self.last_error = parsed
 
         return nft_mint_data
+
+
+    async def transferNft(
+            self,
+            apiKey: str,
+            privateKey: str,
+            exchange: str,
+            fromAccountId: int,
+            fromAddress: str,
+            toAccountId: int,
+            toAddress: str,
+            amount: str,
+            validUntil: int,
+            storageId: int,
+            maxFeeTokenId: int,
+            maxFeeAmount: str,
+            memo: str,
+            counterFactualNftInfo: CounterFactualNftInfo,
+            nftInfo: NftInfo,
+            eddsaSignature: str) -> TransferResponseData:
+        params = {
+            "exchange": exchange,
+            "eddsaSignature": eddsaSignature,
+            "fromAccountId": fromAccountId,
+            "fromAddress": fromAddress,
+            "toAccountId": toAccountId,
+            "toAddress": toAddress,
+            "token": {
+                "tokenId": nftInfo['tokenId'],
+                "nftData": nftInfo['nftData'],
+                "amount": amount
+            },
+            "maxFee": {
+                "tokenId": maxFeeTokenId,
+                "amount": maxFeeAmount
+            },
+            "counterFactualNftInfo": {
+                "nftFactory": counterFactualNftInfo['nftFactory'],
+                "nftOwner": counterFactualNftInfo['nftOwner'],
+                "nftBaseUri": counterFactualNftInfo['nftBaseUri']
+            },
+            "storageId": storageId,
+            "validUntil": validUntil
+        }
+
+        EIP712.init_env(name="Loopring Protocol",
+                        version="3.6.0",
+                        chainId=1,
+                        verifyingContract="0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4")
+
+        message = generateTransferEIP712Hash(req={
+            'payerAddr': fromAddress,
+            'payeeAddr': toAddress,
+            'token': {
+                'volume': str(amount),
+                'tokenId': nftInfo['tokenId']
+            },
+            'maxFee': {
+                'tokenId': maxFeeTokenId,
+                'volume': str(maxFeeAmount)
+            },
+            'validUntil': validUntil,
+            'storageId': storageId
+        })
+
+        # print(f"{message=}")
+        eth_pkey = int(os.getenv('L1_PRIVATE_KEY'), 16).to_bytes(32, byteorder='big')
+        v, r, s = sig_utils.ecsign(message, eth_pkey)
+        ecdsaSignature = "0x" + bytes.hex(v_r_s_to_signature(v, r, s)) + "02"
+        # print(f"{ecdsaSignature=}")
+        headers = {
+            "x-api-key": apiKey,
+            "x-api-sig": ecdsaSignature
+        }
+        transfer_data = None
+
+        try:
+            response = await self.session.post("/api/v3/nft/transfer", json=params, headers=headers)
+            parsed = await response.json()
+            self.last_status = response.status
+
+            response.raise_for_status()
+            transfer_data = cast(TransferResponseData, parsed)
+        except aiohttp.ClientError as client_err:
+            print("Error transferring nft: ")
+            pprint(client_err)
+            pprint(parsed)
+            self.last_error = parsed
+        except Exception as err:
+            print("An error ocurred transferring nft: ")
+            pprint(err)
+            pprint(parsed)
+            self.last_error = parsed
+
+        return transfer_data
 
     async def __aenter__(self) -> 'LoopringMintService':
         return self
