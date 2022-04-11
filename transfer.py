@@ -78,7 +78,6 @@ def parse_args():
     parser.add_argument("--test", help="Skips the transfer step", action='store_true')
     parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
     parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
-    parser.add_argument("--name", help=argparse.SUPPRESS, type=str)
     parser.add_argument("--nft", help="NFT ID (hex string) to transfer", type=str)
     # parser.add_argument("--memo", help="Transfer memo", default="")
     
