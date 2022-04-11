@@ -189,8 +189,9 @@ async def get_nft_info(cfg, secret, args) -> NftInfo:
         if nft_balance is None:
             sys.exit("Failed to obtain nft balance")
         
-    nft_info = [nft for nft in nft_balance['data'] if nft['nftId'].lower() == args.nft.lower()]
-    nft_info.append(None)
+    nft_info = [nft for nft in nft_balance['data'] if int(nft['nftId'], 16) == int(args.nft, 16)]
+
+    assert len(nft_info) > 0, f"NFT ID {args.nft.lower()} not found in balance of account {cfg.fromAccount}"
 
     return nft_info[0]
 
@@ -356,13 +357,18 @@ async def main():
                 sys.exit("Aborted by user")
         
         # NFT transfer sequence
+        skipped_tos = []
         for i, to in enumerate(filtered_tos):
-
             info = {'to': to, 'amount': args.amount}
             
             # Resolve ENS, get account_id and ETH address
             toAccount, toAddress = await retry_async(get_account_info, to, retries=3)
-            assert toAddress and toAccount, f"Invalid to address: {toAddress} (account ID {toAccount})"
+
+            if not toAddress or not toAccount:
+                print(f"{i+1}/{len(filtered_tos)} {i+1}: Invalid to address: {toAddress} (account ID {toAccount}), skipping (to: {to})")
+                skipped_tos.append(to)
+                continue
+
             info['toAddress'] = toAddress
             info['toAccount'] = toAccount
 
@@ -390,6 +396,10 @@ async def main():
                 print(f"{i+1}/{len(filtered_tos)} {i+1}: Skipping transfer (test mode) (to: {to})")
 
             transfer_info.append(info)
+
+        if len(skipped_tos) > 0:
+            print(f"Skipped {len(skipped_tos)} invalid to addresses:")
+            print('\n'.join(skipped_tos))
     finally:
         with open(paths.transfer_info, 'w+') as f:
             json.dump(transfer_info, f, indent=4)
