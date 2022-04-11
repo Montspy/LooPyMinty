@@ -117,7 +117,7 @@ def parse_args():
     assert args.json or args.cid or (args.loopygen and args.name), "Missing --cid or --json argument, please provide one"
 
     # LooPyGen specifics
-    if args.loopygen and args.name:
+    if not args.json and not args.cid and (args.loopygen and args.name):
         args.json = os.path.join("./generated", args.name, "metadata-cids.json")
         args.cid = None
     # END LooPyGen specifics
@@ -329,7 +329,7 @@ async def main():
     paths = Struct()
     paths.mint_info = os.path.join(os.path.dirname(__file__), "mint-info.json")
     paths.config = "./config.json"
-    if args.loopygen:
+    if args.loopygen and args.name:
         paths.traits = os.path.join("./images", args.name, "traits.json")
 
     # Parse all cids from JSON or command line
