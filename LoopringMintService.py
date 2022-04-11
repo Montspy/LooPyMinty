@@ -102,11 +102,11 @@ class LoopringMintService(object):
             response.raise_for_status()
             address_resp = parsed["data"]
         except aiohttp.ClientError as client_err:
-            print(f"Error getting user api key: {client_err}")
+            print(f"Error resolving ENS: {client_err}")
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
-            print(f"An error ocurred getting user api key: {err}")
+            print(f"An error ocurred resolving ENS: {err}")
             pprint(parsed)
             self.last_error = parsed
 
@@ -126,11 +126,11 @@ class LoopringMintService(object):
             response.raise_for_status()
             account_id = parsed["accountId"]
         except aiohttp.ClientError as client_err:
-            print(f"Error getting user api key: {client_err}")
+            print(f"Error getting account ID: {client_err}")
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
-            print(f"An error ocurred getting user api key: {err}")
+            print(f"An error ocurred getting account ID: {err}")
             pprint(parsed)
             self.last_error = parsed
 
