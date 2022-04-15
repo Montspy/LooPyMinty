@@ -5,6 +5,7 @@ import os
 from shutil import copy2
 import argparse
 import asyncio
+import yaspin
 import json
 from glob import glob
 
@@ -60,19 +61,41 @@ def make_directories(args):
     return paths
 
 # CID pre-calc helper functions
-async def get_file_cid(path: str, version: int=0):
+async def get_file_cid(task_id: int, path: str, version: int=0):
     proc = await asyncio.create_subprocess_shell(
-        f'cid --cid-version={version} {path}',
+        f'cid --cid-version={version} "{path}"',
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode > 0:
         raise RuntimeError(f'Could not get CIDv{version} of file {path}:\n\t{stderr.decode()}')
-    return stdout.decode().strip()
+    return stdout.decode().strip(), task_id
 
-async def get_files_cids(paths: 'list[str]', version: int=0):
-    return await asyncio.gather(*[get_file_cid(file, version=version) for file in paths])
+async def get_files_cids(paths: 'list[str]', version: int=0): 
+    semaphore = asyncio.Semaphore(16)   # Limit to 16 files open at once
+    async def sem_task(task):
+        async with semaphore:
+            return await task
+
+    task_ids = list(range(len(paths)))
+    results = []
+
+    with yaspin.kbi_safe_yaspin().line as spinner:
+        if len(task_ids) > 10:
+            spinner.text = f"Calculating CID for {' '.join( [f'#{id:03}' for id in task_ids[:10]] )} (+ {len(task_ids) - 10} others)"
+        else:
+            spinner.text = f"Calculating CID for {' '.join( [f'#{id:03}' for id in task_ids] )}"
+        for task in asyncio.as_completed( [sem_task(get_file_cid(id, file, version)) for id, file in zip(task_ids, paths)] ):
+            result, id = await task
+            results.append(result)
+            task_ids.remove(id)
+            if len(task_ids) > 10:
+                spinner.text = f"Calculating CID for {' '.join( [f'#{id:03}' for id in task_ids[:10]] )} (+ {len(task_ids) - 10} others)"
+            else:
+                spinner.text = f"Calculating CID for {' '.join( [f'#{id:03}' for id in task_ids] )}"
+
+    return results
 
 def main():
     load_dotenv()
