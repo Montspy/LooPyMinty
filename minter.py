@@ -61,7 +61,7 @@ async def load_config(args, paths: Struct):
         cfg.nftType               = int(loopygen_cfg.nft_type)
         cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
         cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
-    if args.loopygen and args.name: # Batch minting a generated collection of NFTs from LooPyGen
+    elif args.loopygen and args.name: # Batch minting a generated collection of NFTs from LooPyGen
         with open(paths.traits) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
