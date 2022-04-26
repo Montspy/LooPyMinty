@@ -51,17 +51,7 @@ async def load_config(args, paths: Struct):
     cfg = Struct()
     secret = Struct()   # Split to avoid leaking keys to console or logs
 
-    if args.loopygen and args.json: # Batch minting a folder of NFTs from LooPyGen
-        with open(paths.config) as f:
-            config_json = json.load(f)
-        loopygen_cfg = Struct(config_json)
-        secret.loopringPrivateKey = loopygen_cfg.private_key
-        cfg.minter                = loopygen_cfg.minter
-        cfg.royalty               = loopygen_cfg.minter
-        cfg.nftType               = int(loopygen_cfg.nft_type)
-        cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
-        cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
-    elif args.loopygen and args.name: # Batch minting a generated collection of NFTs from LooPyGen
+    if args.loopygen and args.name: # Batch minting a generated collection of NFTs from LooPyGen
         with open(paths.traits) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
@@ -73,6 +63,16 @@ async def load_config(args, paths: Struct):
         cfg.royalty               = traits.royalty_address
         cfg.nftType               = int(loopygen_cfg.nft_type)
         cfg.royaltyPercentage     = int(traits.royalty_percentage)
+        cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
+    elif args.loopygen and args.json: # Batch minting a folder of NFTs from LooPyGen
+        with open(paths.config) as f:
+            config_json = json.load(f)
+        loopygen_cfg = Struct(config_json)
+        secret.loopringPrivateKey = loopygen_cfg.private_key
+        cfg.minter                = loopygen_cfg.minter
+        cfg.royalty               = loopygen_cfg.minter
+        cfg.nftType               = int(loopygen_cfg.nft_type)
+        cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
         cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
     else:   # Minting from LooPyMinty
         secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
