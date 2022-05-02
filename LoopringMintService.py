@@ -196,7 +196,7 @@ class LoopringMintService(object):
 
         end_reached = False
         offset = 0
-        limit = 500
+        limit = 50
 
         nft_balance = NftBalance({'totalNum': 0, 'data': []})
         while not end_reached:
