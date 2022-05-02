@@ -191,7 +191,7 @@ class LoopringMintService(object):
             response.raise_for_status()
             storage_id = cast(StorageId, parsed)
         except aiohttp.ClientError as client_err:
-            print(f"Error getting storage id: {client_err}")
+            print(f"Error getting storage id: ")
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
@@ -216,7 +216,7 @@ class LoopringMintService(object):
             response.raise_for_status()
             counterfactual_nft = cast(CounterFactualNft, parsed)
         except aiohttp.ClientError as client_err:
-            print(f"Error computing token address: {client_err}")
+            print(f"Error computing token address: ")
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
@@ -241,7 +241,7 @@ class LoopringMintService(object):
             response.raise_for_status()
             off_chain_fee = cast(OffchainFee, parsed)
         except aiohttp.ClientError as client_err:
-            print(f"Error getting off chain fee: {client_err}")
+            print(f"Error getting off chain fee: ")
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
@@ -335,7 +335,6 @@ class LoopringMintService(object):
             nft_mint_data = cast(MintResponseData, parsed)
         except aiohttp.ClientError as client_err:
             print("Error minting nft: ")
-            pprint(client_err)
             pprint(parsed)
             self.last_error = parsed
         except Exception as err:
