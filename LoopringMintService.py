@@ -467,7 +467,7 @@ class LoopringMintService(object):
         })
 
         # print(f"{message=}")
-        eth_pkey = int(os.getenv('L1_PRIVATE_KEY'), 16).to_bytes(32, byteorder='big')
+        eth_pkey = int(os.getenv('L1_PRIVATE_KEY').lower(), 16).to_bytes(32, byteorder='big')
         v, r, s = sig_utils.ecsign(message, eth_pkey)
         ecdsaSignature = "0x" + bytes.hex(v_r_s_to_signature(v, r, s)) + "02"
         # print(f"{ecdsaSignature=}")

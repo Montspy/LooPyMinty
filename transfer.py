@@ -23,7 +23,7 @@ def plog(object, **kwds):
 
 async def get_account_info(account: str):
     async with LoopringMintService() as lms:
-        account = str(account).strip()
+        account = str(account).strip().lower()
         if account[:2] == "0x":
             address = account
             id = await lms.getAccountId(address)
@@ -67,6 +67,7 @@ async def load_config(args, paths: Struct):
 
     if secret.loopringPrivateKey[:2] != "0x":
         secret.loopringPrivateKey = "0x{0:0{1}x}".format(int(secret.loopringPrivateKey), 64)
+    secret.loopringPrivateKey = secret.loopringPrivateKey.lower()
     
     return cfg, secret
 
