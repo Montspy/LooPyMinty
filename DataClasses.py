@@ -73,6 +73,7 @@ class MintResult:
     FAILED = -1
     SUCCESS = 0
     EXISTS = 1
-    TESTMODE = 2
+    FEE_INVALID = 2
+    TESTMODE = 3
 
 token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}
