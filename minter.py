@@ -24,14 +24,14 @@ def plog(object, **kwds):
 
 async def get_account_info(account: str):
     async with LoopringMintService() as lms:
-        account = str(account).strip()
-        if account[:2] == "0x":
+        account = str(account).strip().lower()
+        if account[:2] == "0x": # Assuming it's an address formatted as L2 hex-string 
             address = account
             id = await lms.getAccountId(address)
-        elif account[-4:] == ".eth":
+        elif account[-4:] == ".eth":    # Assuming it's an ENS
             address = await lms.resolveENS(account)
             id = await lms.getAccountId(address)
-        else:
+        else:   # Assuming it's an account ID
             id = int(account)
             address = await lms.getAccountAddress(id)
     return id, address
@@ -100,6 +100,7 @@ async def load_config(args, paths: Struct):
 
     if secret.loopringPrivateKey[:2] != "0x":
         secret.loopringPrivateKey = "0x{0:0{1}x}".format(int(secret.loopringPrivateKey), 64)
+    secret.loopringPrivateKey = secret.loopringPrivateKey.lower()
     
     return cfg, secret
 
