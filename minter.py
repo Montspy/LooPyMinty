@@ -128,7 +128,7 @@ def parse_args():
 
     # LooPyGen specifics
     if not args.json and not args.cid and (args.loopygen and args.name):
-        args.json = os.path.join("./generated", args.name, "metadata-cids.json")
+        args.json = os.path.join("./collections", args.name, "config", "metadata-cids.json")
         args.cid = None
     # END LooPyGen specifics
 
@@ -340,7 +340,7 @@ async def main():
     paths.mint_info = os.path.join(os.path.dirname(__file__), "mint-info.json")
     paths.config = "./config.json"
     if args.loopygen and args.name:
-        paths.traits = os.path.join("./images", args.name, "traits.json")
+        paths.traits = os.path.join("./collections", args.name, "config", "traits.json")
 
     # Parse all cids from JSON or command line
     if args.json:
