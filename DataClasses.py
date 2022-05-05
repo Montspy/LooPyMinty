@@ -99,6 +99,7 @@ class MintResult:
 class TransferResult:
     FAILED = -1
     SUCCESS = 0
+    FEE_INVALID = 2
     TESTMODE = 99
 
 class TransferMode:
