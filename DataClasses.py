@@ -104,5 +104,6 @@ class TransferResult:
 class TransferMode:
     SINGLE=1
     RANDOM=2
+    ORDERED=3
 
 token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}
