@@ -12,7 +12,6 @@
 .env
 *.json
 output/
-tx_list.txt
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
