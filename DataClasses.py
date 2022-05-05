@@ -61,7 +61,8 @@ class StorageId(TypedDict):
     
 
 class NftInfo(TypedDict):
-    orderId: int
+    id: int
+    accountId: int
     tokenId: int
     nftData: str
     tokenAddress: str
@@ -99,5 +100,9 @@ class TransferResult:
     FAILED = -1
     SUCCESS = 0
     TESTMODE = 99
+
+class TransferMode:
+    SINGLE=1
+    RANDOM=2
 
 token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}

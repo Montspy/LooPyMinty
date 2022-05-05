@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 from pprint import pprint
 import argparse
 import asyncio
+import random
+import base58
 import json
 
 from DataClasses import *
@@ -75,25 +77,46 @@ async def load_config(args, paths: Struct):
 def parse_args():
     # check for command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("-n", "--amount", help="Specify the transfer amount per to address", type=int)
-    parser.add_argument("--test", help="Skips the transfer step", action='store_true')
-    parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
-    parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
-    parser.add_argument("--nft", help="NFT ID (hex string) to transfer", type=str)
-    # parser.add_argument("--memo", help="Transfer memo", default="")
+    mode_group_title = parser.add_argument_group(title="Transfer mode")
+    mode_group = mode_group_title.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument("--single", metavar="NFT ID", dest="nftid", help="Provide an NFT ID for one-to-many transfers", type=str)
+    mode_group.add_argument("--random", metavar="CONTRACT", dest="random_contract", help="Provide a contract address for many-to-many random transfers", type=str)
+    mode_group.add_argument("--randomlist", metavar="LIST", dest="random_list", help="Path to a file of CIDs for many-to-many random transfers", type=str)
     
-    source_group = parser.add_mutually_exclusive_group(required=True)
-    source_group.add_argument("--to", help="L2 address (hex string) to transfer to", type=str)
-    source_group.add_argument("--tofile", help="Path to a file of L2 address (hex string) to transfer to", type=str)
+    to_group_title = parser.add_argument_group(title="Recipients")
+    to_group = to_group_title.add_mutually_exclusive_group(required=True)
+    to_group.add_argument("--to", help="L2 address (hex string) to transfer to", type=str)
+    to_group.add_argument("--tolist", metavar="LIST", help="Path to a file of L2 address (hex string) to transfer to", type=str)
+
+    parser.add_argument("--test", help="Skips the transfer step", action='store_true')
+    parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
+    parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
 
     args = parser.parse_args()
 
-    # NFT id
-    assert args.nft, "Missing NFT ID (use --nft)"
-    
-    # Transfer amount
-    if not args.amount:
-        args.amount = int(os.getenv("AMOUNT") or 1)
+    # Argument validation
+    # NFT ID
+    if args.nftid:
+        assert args.nftid[:2] == "0x" and len(args.nftid) == 66, f"Invalid NFT ID provided for --single ({args.nftid})"
+        args.mode = TransferMode.SINGLE
+
+    # Random contract
+    if args.random_contract:
+        assert args.random_contract[:2] == "0x" and len(args.random_contract) == 42, f"Invalid Contract address provided for --random ({args.random_contract})"
+        args.mode = TransferMode.RANDOM
+
+    # Random CID list
+    if args.random_list:
+        assert os.path.exists(args.random_list), f"Invalid path to list of CIDs provided for --randomlist ({args.random_list})"
+        args.mode = TransferMode.RANDOM
+
+    # To address
+    if args.to:
+        assert (args.to[-4:] == ".eth") or ((args.to[:2] == "0x") and (len(args.to) == 42)), f"Invalid To address provided for --to ({args.to})"
+
+    # To address list
+    if args.tolist:
+        assert os.path.exists(args.tolist), f"Invalid path to list of To addresses provided for --tolist ({args.tolist})"
 
     # Test mode
     if args.test:
@@ -180,7 +203,7 @@ async def get_offchain_parameters(cfg, secret, nftTokenId):
 
     return parameters
 
-async def get_nft_info(cfg, secret, args) -> NftInfo:
+async def get_nft_balance(cfg, secret) -> NftBalance:
     async with LoopringMintService() as lms:
         info = {}
         # Getting the NFT balance
@@ -188,12 +211,25 @@ async def get_nft_info(cfg, secret, args) -> NftInfo:
         log(f"NFT balance: {json.dumps(nft_balance, indent=2)}")
         if nft_balance is None:
             sys.exit("Failed to obtain nft balance")
-        
-    nft_info = [nft for nft in nft_balance['data'] if int(nft['nftId'], 16) == int(args.nft, 16)]
+    
+    return nft_balance
 
-    assert len(nft_info) > 0, f"NFT ID {args.nft.lower()} not found in balance of account {cfg.fromAccount}"
+def filter_nft_balance_by(balance: NftBalance, key: str, value: any) -> NftBalance:
+    if len(balance['data']) == 0:
+        return NftBalance(totalNum=0, data=[])
+    assert key in balance['data'][0].keys(), f"Error filtering NFT balance: Invalid key {key}"
 
-    return nft_info[0]
+    if type(value) != type(list()):
+        value = [value]
+
+    if key in ['tokenAddress', 'nftId', 'nftData']: # For hex strings, compare the underlying integer
+        value = [int(v, 16) for v in value]
+        filter_func = lambda t: int(t[key], 16) in value
+    else:   # For other types (str, int), compare directly
+        filter_func = lambda t: t[key] in value
+
+    filtered_data = list(filter(filter_func, balance['data']))
+    return NftBalance(totalNum=len(filtered_data), data=filtered_data)
 
 # https://github.com/Loopring/loopring_sdk/blob/692d372165b5ea0d760e33e177d9003cc0dfb0f7/src/api/sign/sign_tools.ts#L1020
 async def get_hashes_and_sign(cfg, secret, tokenId: int, amount: int, toAddress: str, toAccount: int, offchain_parameters: dict, info: dict):
@@ -270,13 +306,6 @@ async def main():
     paths.transfer_info = os.path.join(os.path.dirname(__file__), "transfer-info.json")
     paths.config = "./config.json"
 
-    # Parse all cids from JSON or command line
-    if args.tofile:
-        with open(args.tofile, 'r') as f:
-            all_tos = [line.strip() for line in f]
-    elif args.to:
-        all_tos = [args.to]
-
     if not os.path.exists(os.path.dirname(paths.transfer_info)):
         os.makedirs(os.path.dirname(paths.transfer_info))
 
@@ -291,59 +320,84 @@ async def main():
         plog(cfg)
         transfer_info.append({'cfg': cfg})
 
-        # Filter tos
-        filtered_tos = []
-        for to in all_tos:
-            info = {'to': to, 'amount': args.amount, 'skipped': True}
-
-            valid_to = False
-
-            # L2 address in hex string
-            if not valid_to and str(to)[:2] == '0x':
-                try:
-                    int(to, 16)
-                    valid_to = True
-                except ValueError as err:
-                    pass
-            # .eth ENS (or .loopring.eth)
-            if not valid_to and str(to)[-4:] == '.eth':
-                valid_to = True
-            # Account ID in decimal
-            if not valid_to:
-                try:
-                    if str(int(str(to), 10)) == str(to):
-                        valid_to = True
-                except ValueError as err:
-                    pass
-
-            if not valid_to:
-                transfer_info.append(info)
-                print(f"Skipping invalid to address: {to}")
-                continue
-
-            filtered_tos.append(to)
-            info['skipped'] = False
-
-            transfer_info.append(info)
-
-        if len(filtered_tos) == 0:
-            print(f"No valid to address found, no one to transfer to...")
-            sys.exit(0)
-
         # Get user API key
         print("Getting user API key... ", end='')
         await get_user_api_key(cfg, secret)
         print("done!")
 
-        # Get nft balance
-        print("Getting nft info... ", end='')
-        nft_info = await get_nft_info(cfg, secret, args)
-        transfer_info.append({'nft_info': nft_info})
+        # Prepare to addresses
+        if args.tolist:
+            with open(args.tolist, 'r') as f:
+                tos = [line.strip() for line in f]
+        elif args.to:
+            tos = [args.to]
+
+        # Prepare NFT IDs from source and filter based on sender balance
+        print("Retrieving sender's NFT balance... ", end='')
+        nft_balance = await get_nft_balance(cfg, secret)
         print("done!")
+        if args.mode == TransferMode.SINGLE:
+            # Verify that single NFT ID is in the sender balance
+            nfts = filter_nft_balance_by(nft_balance, 'nftId', args.nftid)
+        elif args.mode == TransferMode.RANDOM:
+            if args.random_contract:
+                # Filter those not from that contract address/collection
+                nfts = filter_nft_balance_by(nft_balance, 'tokenAddress', args.random_contract)
+            elif args.random_list:
+                # Get list of NFT IDs from file, verify they are in the sender balance    
+                with open(args.random_list, 'r') as f:
+                    cids = f.readlines()
+                nft_ids = ["0x" + base58.b58decode(cid).hex()[4:] if cid[:2] == "Qm" else cid for cid in cids]  # CID to NFT ID hex-string: base58 to hex and drop first 2 bytes (always 1220h)
+                nfts = filter_nft_balance_by(nft_balance, 'nftId', nft_ids)
+
+        log(nfts['totalNum'])
+        plog(nfts)
+        transfer_info.append({'nfts': nfts})
+
+        weights = [int(t['total']) for t in nfts['data']]
+        total_amount = sum(weights)
+        log(weights, total_amount)
+        transfer_info.append({'weights': weights})
+        transfer_info.append({'total_amount': total_amount})
+
+        # Make sure they have at least as many NFTs as to addresses
+        if total_amount < len(tos):
+            sys.exit(f"Not enough matching NFTs found in balance of account {cfg.fromAccount} ({total_amount} matching, but expected {len(tos)} or more)")
+
+        # Filter tos
+        skipped_tos = []
+        filtered_tos = []
+        for to in tos:
+            info = {'to': to, 'invalid': True}
+
+            valid_to = True
+
+            try: 
+                to_account, to_address = await retry_async(get_account_info, to, retries=3)
+                if not to_account or not to_address:
+                    valid_to = False
+            except:
+                valid_to = False
+            
+            if not valid_to:
+                transfer_info.append(info)
+                print(f"Skipping invalid to address: {to}")
+                skipped_tos.append(to)
+                continue
+
+            filtered_tos.append((to_account, to_address))
+            info['invalid'] = False
+            info['to_account'] = to_account
+            info['to_address'] = to_address
+
+            transfer_info.append(info)
+
+        if len(filtered_tos) == 0:
+            sys.exit(f"No valid to address found, no one to transfer to...")
 
         # Get storage id, token address and offchain fee
         print("Getting offchain parameters... ", end='')
-        offchain_parameters = await get_offchain_parameters(cfg, secret, nft_info['tokenId'])
+        offchain_parameters = await get_offchain_parameters(cfg, secret, nfts['data'][0]['tokenId'])
         transfer_info.append({'offchain_parameters': offchain_parameters})
         print("done!")
 
@@ -351,36 +405,42 @@ async def main():
         if not approved_fees_prompt:
             batch_fees, fees_symbol = estimate_batch_fees(cfg, offchain_parameters['off_chain_fee'], len(filtered_tos))
             log("--------")
-            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for transfering {args.amount} copies of NFTs to {len(filtered_tos)} addresses: {batch_fees}{fees_symbol}, continue?", default="no")
+            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for transfering NFTs to {len(filtered_tos)} addresses: {batch_fees}{fees_symbol}, continue?", default="no")
             transfer_info.append({'fee_approval': approved_fees_prompt, 'fee': batch_fees, 'token': fees_symbol})
             if not approved_fees_prompt: 
                 sys.exit("Aborted by user")
+        approved_off_chain_fee = offchain_parameters['off_chain_fee']
         
         # NFT transfer sequence
-        skipped_tos = []
-        for i, to in enumerate(filtered_tos):
-            info = {'to': to, 'amount': args.amount}
-            
-            # Resolve ENS, get account_id and ETH address
-            toAccount, toAddress = await retry_async(get_account_info, to, retries=3)
+        for i, (to_account, to_address) in enumerate(filtered_tos):
+            info = {'to_account': to_account, 'to_address': to_address}
 
-            if not toAddress or not toAccount:
-                print(f"{i+1}/{len(filtered_tos)} {i+1}: Invalid to address: {toAddress} (account ID {toAccount}), skipping (to: {to})")
-                skipped_tos.append(to)
-                continue
+            log("Picking from weights:", weights)
 
-            info['toAddress'] = toAddress
-            info['toAccount'] = toAccount
+            # Pick random NFT ID by index
+            random_index = random.choices(range(nfts['totalNum']), weights)[0]
+            weights[random_index] -= 1  # Amount of that NFT is one less for subsequent random choice
+            nft_info = nfts['data'][random_index]
+
+            log("Picked:", random_index)
+            plog(nft_info)
+
+            info['random_index'] = random_index
+            info['nftId'] = nft_info['nftId']
+
+            # Get storage id, token address, but conserve off_chain_fee (they have been accepted by user)
+            offchain_parameters = await get_offchain_parameters(cfg, secret, nft_info['tokenId'])
+            offchain_parameters['off_chain_fee'] = approved_off_chain_fee
 
             # Generate Eddsa Signature
-            eddsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], args.amount, toAddress, toAccount, offchain_parameters=offchain_parameters, info=info)
+            eddsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], 1, to_address, to_account, offchain_parameters=offchain_parameters, info=info)
 
             # Submit the nft transfer
             transfer_result, response = await transfer_nft(cfg,
                                                            secret,
-                                                           amount=args.amount,
-                                                           toAccount=toAccount,
-                                                           toAddress=toAddress,
+                                                           amount=1,
+                                                           toAccount=to_account,
+                                                           toAddress=to_address,
                                                            nftInfo=nft_info,
                                                            eddsa_signature=eddsa_signature,
                                                            offchain_parameters=offchain_parameters,
@@ -388,12 +448,12 @@ async def main():
                                                            info=info)
             
             if transfer_result == TransferResult.SUCCESS:
-                print(f"{i+1}/{len(filtered_tos)} {i+1}: Successful Transfer! (tx hash: {response['hash']})")
+                print(f"{i+1}/{len(filtered_tos)} {i+1}: Successful Transfer! (tx hash: {response['hash']}, to: {to_address}, nftId: {nft_info['nftId']})")
                 offchain_parameters['storage_id']['offchainId'] += 2
             elif transfer_result ==  TransferResult.FAILED:
-                print(f"{i+1}/{len(filtered_tos)} {i+1}: Transfer FAILED... (to: {to})")
+                print(f"{i+1}/{len(filtered_tos)} {i+1}: Transfer FAILED... (to: {to_address}, nftId: {nft_info['nftId']})")
             elif transfer_result ==  TransferResult.TESTMODE:
-                print(f"{i+1}/{len(filtered_tos)} {i+1}: Skipping transfer (test mode) (to: {to})")
+                print(f"{i+1}/{len(filtered_tos)} {i+1}: Skipping transfer (test mode) (to: {to_address}, nftId: {nft_info['nftId']})")
 
             transfer_info.append(info)
 
