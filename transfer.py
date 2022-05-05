@@ -82,6 +82,7 @@ def parse_args():
     mode_group.add_argument("--single", metavar="NFT ID", dest="nftid", help="Provide an NFT ID for one-to-many transfers", type=str)
     mode_group.add_argument("--random", metavar="CONTRACT", dest="random_contract", help="Provide a contract address for many-to-many random transfers", type=str)
     mode_group.add_argument("--randomlist", metavar="LIST", dest="random_list", help="Path to a file of CIDs for many-to-many random transfers", type=str)
+    mode_group.add_argument("--list", metavar="LIST", dest="ordered_list", help="Path to a file of CIDs for many-to-many ordered transfers", type=str)
     
     to_group_title = parser.add_argument_group(title="Recipients")
     to_group = to_group_title.add_mutually_exclusive_group(required=True)
@@ -109,6 +110,11 @@ def parse_args():
     if args.random_list:
         assert os.path.exists(args.random_list), f"Invalid path to list of CIDs provided for --randomlist ({args.random_list})"
         args.mode = TransferMode.RANDOM
+
+    # Ordered CID list
+    if args.ordered_list:
+        assert os.path.exists(args.ordered_list), f"Invalid path to list of CIDs provided for --list ({args.ordered_list})"
+        args.mode = TransferMode.ORDERED
 
     # To address
     if args.to:
@@ -214,22 +220,29 @@ async def get_nft_balance(cfg, secret) -> NftBalance:
     
     return nft_balance
 
-def filter_nft_balance_by(balance: NftBalance, key: str, value: any) -> NftBalance:
+def filter_nft_balance_by(balance: NftBalance, key: str, values: any) -> NftBalance:
+    # Check inputs
     if len(balance['data']) == 0:
         return NftBalance(totalNum=0, data=[])
     assert key in balance['data'][0].keys(), f"Error filtering NFT balance: Invalid key {key}"
 
-    if type(value) != type(list()):
-        value = [value]
+    # Convert single elements to list
+    if type(values) != type(list()):
+        values = [values]
 
+    # Define filter and sorting lambdas
     if key in ['tokenAddress', 'nftId', 'nftData']: # For hex strings, compare the underlying integer
-        value = [int(v, 16) for v in value]
-        filter_func = lambda t: int(t[key], 16) in value
+        values = [int(v, 16) for v in values]
+        filter_func = lambda t: int(t[key], 16) in values           # Filter out the values of `key` that are not in `values`
+        sorting_func = lambda t: values.index(int(t[key], 16))      # Sort by the order in `values`
     else:   # For other types (str, int), compare directly
-        filter_func = lambda t: t[key] in value
+        filter_func = lambda t: t[key] in values
+        sorting_func = lambda t: values.index(t[key])
+
 
     filtered_data = list(filter(filter_func, balance['data']))
-    return NftBalance(totalNum=len(filtered_data), data=filtered_data)
+    sorted_data = sorted(filtered_data, key=sorting_func)
+    return NftBalance(totalNum=len(sorted_data), data=sorted_data)
 
 # https://github.com/Loopring/loopring_sdk/blob/692d372165b5ea0d760e33e177d9003cc0dfb0f7/src/api/sign/sign_tools.ts#L1020
 async def get_hashes_and_sign(cfg, secret, tokenId: int, amount: int, toAddress: str, toAccount: int, offchain_parameters: dict, info: dict):
@@ -339,14 +352,14 @@ async def main():
         if args.mode == TransferMode.SINGLE:
             # Verify that single NFT ID is in the sender balance
             nfts = filter_nft_balance_by(nft_balance, 'nftId', args.nftid)
-        elif args.mode == TransferMode.RANDOM:
+        else:   # RANDOM or ORDERED
             if args.random_contract:
                 # Filter those not from that contract address/collection
                 nfts = filter_nft_balance_by(nft_balance, 'tokenAddress', args.random_contract)
-            elif args.random_list:
+            elif args.random_list or args.ordered_list:
                 # Get list of NFT IDs from file, verify they are in the sender balance    
-                with open(args.random_list, 'r') as f:
-                    cids = f.readlines()
+                with open(args.random_list or args.ordered_list, 'r') as f:
+                    cids = [line.strip() for line in f.readlines()]
                 nft_ids = ["0x" + base58.b58decode(cid).hex()[4:] if cid[:2] == "Qm" else cid for cid in cids]  # CID to NFT ID hex-string: base58 to hex and drop first 2 bytes (always 1220h)
                 nfts = filter_nft_balance_by(nft_balance, 'nftId', nft_ids)
 
@@ -354,6 +367,7 @@ async def main():
         plog(nfts)
         transfer_info.append({'nfts': nfts})
 
+        # Weights based off the amount of each NFT
         weights = [int(t['total']) for t in nfts['data']]
         total_amount = sum(weights)
         log(weights, total_amount)
@@ -417,15 +431,23 @@ async def main():
 
             log("Picking from weights:", weights)
 
-            # Pick random NFT ID by index
-            random_index = random.choices(range(nfts['totalNum']), weights)[0]
-            weights[random_index] -= 1  # Amount of that NFT is one less for subsequent random choice
-            nft_info = nfts['data'][random_index]
+            if args.mode == TransferMode.SINGLE:
+                nft_info = nfts['data'][0]
+            elif args.mode == TransferMode.RANDOM:
+                # Pick random NFT ID by index
+                index = random.choices(range(nfts['totalNum']), weights)[0]
+                weights[index] -= 1  # Amount of that NFT is one less for subsequent random choice
+                nft_info = nfts['data'][index]
+            elif args.mode == TransferMode.ORDERED: # Using `weights` list as the quantity remaining of each NFT
+                # Pick NFT ID sequentially (next NFT ID with weight > 0)
+                index = next(i for i,w in enumerate(weights) if w > 0)
+                weights[index] -= 1  # Amount of that NFT is one less for subsequent transfer
+                nft_info = nfts['data'][index]
 
-            log("Picked:", random_index)
+            log("Picked:", index)
             plog(nft_info)
 
-            info['random_index'] = random_index
+            info['index'] = index
             info['nftId'] = nft_info['nftId']
 
             # Get storage id, token address, but conserve off_chain_fee (they have been accepted by user)
