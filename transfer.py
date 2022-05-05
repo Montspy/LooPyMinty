@@ -81,14 +81,15 @@ def parse_args():
     mode_group = mode_group_title.add_mutually_exclusive_group(required=True)
     mode_group.add_argument("--single", metavar="NFT ID", dest="nftid", help="Provide an NFT ID for one-to-many transfers", type=str)
     mode_group.add_argument("--random", metavar="CONTRACT", dest="random_contract", help="Provide a contract address for many-to-many random transfers", type=str)
-    mode_group.add_argument("--randomlist", metavar="LIST", dest="random_list", help="Path to a file of CIDs for many-to-many random transfers", type=str)
-    mode_group.add_argument("--list", metavar="LIST", dest="ordered_list", help="Path to a file of CIDs for many-to-many ordered transfers", type=str)
+    mode_group.add_argument("--randomlist", metavar="LIST", dest="random_list", help="Path to a file of NFT IDs or CIDs for many-to-many random transfers", type=str)
+    mode_group.add_argument("--list", metavar="LIST", dest="ordered_list", help="Path to a file of NFT IDs or CIDs for many-to-many ordered transfers", type=str)
     
     to_group_title = parser.add_argument_group(title="Recipients")
     to_group = to_group_title.add_mutually_exclusive_group(required=True)
     to_group.add_argument("--to", help="L2 address (hex string) to transfer to", type=str)
     to_group.add_argument("--tolist", metavar="LIST", help="Path to a file of L2 address (hex string) to transfer to", type=str)
 
+    parser.add_argument("--amount", help="Amount of NFTs to send to each address (only valid with --single)", type=int, default=1)
     parser.add_argument("--test", help="Skips the transfer step", action='store_true')
     parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
     parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
@@ -99,21 +100,25 @@ def parse_args():
     # NFT ID
     if args.nftid:
         assert args.nftid[:2] == "0x" and len(args.nftid) == 66, f"Invalid NFT ID provided for --single ({args.nftid})"
+        assert args.amount > 0, f"Invalid argument --amount ({args.amount}), should be > 0"
         args.mode = TransferMode.SINGLE
 
     # Random contract
     if args.random_contract:
         assert args.random_contract[:2] == "0x" and len(args.random_contract) == 42, f"Invalid Contract address provided for --random ({args.random_contract})"
+        assert args.amount == 1, f"Invalid argument --amount ({args.amount}), should be 1 with --random"
         args.mode = TransferMode.RANDOM
 
     # Random CID list
     if args.random_list:
         assert os.path.exists(args.random_list), f"Invalid path to list of CIDs provided for --randomlist ({args.random_list})"
+        assert args.amount == 1, f"Invalid argument --amount ({args.amount}), should be 1 with --randomlist"
         args.mode = TransferMode.RANDOM
 
     # Ordered CID list
     if args.ordered_list:
         assert os.path.exists(args.ordered_list), f"Invalid path to list of CIDs provided for --list ({args.ordered_list})"
+        assert args.amount == 1, f"Invalid argument --amount ({args.amount}), should be 1 with --list"
         args.mode = TransferMode.ORDERED
 
     # To address
@@ -376,8 +381,8 @@ async def main():
         transfer_info.append({'total_amount': total_amount})
 
         # Make sure they have at least as many NFTs as to addresses
-        if total_amount < len(tos):
-            sys.exit(f"Not enough matching NFTs found in balance of account {cfg.fromAccount} ({total_amount} matching, but expected {len(tos)} or more)")
+        if total_amount < (len(tos) * args.amount):
+            sys.exit(f"Not enough matching NFTs found in balance of account {cfg.fromAccount} ({total_amount} matching, but expected {(len(tos) * args.amount)} or more)")
 
         # Filter tos
         skipped_tos = []
@@ -456,12 +461,12 @@ async def main():
             offchain_parameters['off_chain_fee'] = approved_off_chain_fee
 
             # Generate Eddsa Signature
-            eddsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], 1, to_address, to_account, offchain_parameters=offchain_parameters, info=info)
+            eddsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], args.amount, to_address, to_account, offchain_parameters=offchain_parameters, info=info)
 
             # Submit the nft transfer
             transfer_result, response = await transfer_nft(cfg,
                                                            secret,
-                                                           amount=1,
+                                                           amount=args.amount,
                                                            toAccount=to_account,
                                                            toAddress=to_address,
                                                            nftInfo=nft_info,
