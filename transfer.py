@@ -357,9 +357,10 @@ async def main():
                 # Filter those not from that contract address/collection
                 nfts = filter_nft_balance_by(nft_balance, 'tokenAddress', args.random_contract)
             elif args.random_list or args.ordered_list:
-                # Get list of NFT IDs from file, verify they are in the sender balance    
+                # Get list of CIDs or NFT IDs from file, verify they are in the sender balance    
                 with open(args.random_list or args.ordered_list, 'r') as f:
                     cids = [line.strip() for line in f.readlines()]
+                    cids = list(set(cids))  # Remove duplicate lines
                 nft_ids = ["0x" + base58.b58decode(cid).hex()[4:] if cid[:2] == "Qm" else cid for cid in cids]  # CID to NFT ID hex-string: base58 to hex and drop first 2 bytes (always 1220h)
                 nfts = filter_nft_balance_by(nft_balance, 'nftId', nft_ids)
 
