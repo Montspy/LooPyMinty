@@ -55,7 +55,8 @@ async def load_config(args, paths: Struct):
     secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
     cfg.fromAddress           = os.getenv("FROM")
     cfg.maxFeeTokenId         = int(os.getenv("FEE_TOKEN_ID"))
-
+    
+    cfg.feeSlippage           = 0.5 # Fee limit is estimatedFee * ( 1 + feeSlippage ), default: +50%
     cfg.validUntil            = 1700000000
     cfg.nftFactory            = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
     cfg.exchange              = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
@@ -147,7 +148,10 @@ def estimate_batch_fees(cfg, off_chain_fee, count):
     discount = off_chain_fee['fees'][cfg.maxFeeTokenId]['discount']
     decimals = token_decimals[token_symbol]
 
-    return count * fee * discount / (10 ** decimals), token_symbol
+    estimated_fee = count * fee * discount / (10 ** decimals)
+    limit_fee = estimated_fee * (1 + cfg.feeSlippage)
+
+    return estimated_fee, limit_fee, token_symbol
 
 # Prompts the user to answer by yes or no
 def prompt_yes_no(prompt: str, default: str=None):
@@ -260,7 +264,8 @@ async def get_hashes_and_sign(cfg, secret, tokenId: int, amount: int, toAddress:
         tokenId,
         amount,
         cfg.maxFeeTokenId,
-        int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
+        int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ), # Apply max fee slippage
+        # int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
         int(toAddress, 16),
         0,
         0,
@@ -296,7 +301,7 @@ async def transfer_nft(cfg, secret,  amount: int, toAccount: int, toAddress: str
             validUntil=cfg.validUntil,
             storageId=offchain_parameters['storage_id']['offchainId'],
             maxFeeTokenId=cfg.maxFeeTokenId,
-            maxFeeAmount=offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee'],
+            maxFeeAmount=int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ),
             memo=cfg.memo,
             nftInfo=nftInfo,
             counterFactualNftInfo=offchain_parameters['counterfactual_nft_info'],
@@ -305,10 +310,14 @@ async def transfer_nft(cfg, secret,  amount: int, toAccount: int, toAddress: str
         log(f"Nft Transfer reponse: {nft_transfer_response}")
         info['nft_transfer_response'] = nft_transfer_response
 
-        if nft_transfer_response is not None and lms.last_status == 200:
-            return TransferResult.SUCCESS, nft_transfer_response
-        else:
-            return TransferResult.FAILED, nft_transfer_response
+    if nft_transfer_response is None:   # Something failed
+        mint_code = lms.last_error['resultInfo']['code']
+        if mint_code == 114002: # Invalid fee amount
+            return TransferResult.FEE_INVALID, nft_transfer_response
+    elif lms.last_status == 200:    # Transfer succeeded
+        return TransferResult.SUCCESS, nft_transfer_response
+
+    return TransferResult.FAILED, nft_transfer_response
 
 async def main():
     load_dotenv()
@@ -423,10 +432,10 @@ async def main():
 
         # Estimate fees and get user approval
         if not approved_fees_prompt:
-            batch_fees, fees_symbol = estimate_batch_fees(cfg, offchain_parameters['off_chain_fee'], len(filtered_tos))
+            cfg.feeEstimate, cfg.feeLimit, cfg.feeSymbol =estimate_batch_fees(cfg, offchain_parameters['off_chain_fee'], len(filtered_tos))
             log("--------")
-            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for transfering NFTs to {len(filtered_tos)} addresses: {batch_fees}{fees_symbol}, continue?", default="no")
-            transfer_info.append({'fee_approval': approved_fees_prompt, 'fee': batch_fees, 'token': fees_symbol})
+            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for transfering NFTs to {len(filtered_tos)} addresses: {cfg.feeEstimate}-{cfg.feeLimit}{cfg.feeSymbol}, continue?", default="no")
+            transfer_info.append({'fee_approval': approved_fees_prompt, 'feeEstimate': cfg.feeEstimate, 'feeLimit': cfg.feeLimit, 'feeSymbol': cfg.feeSymbol})
             if not approved_fees_prompt: 
                 sys.exit("Aborted by user")
         approved_off_chain_fee = offchain_parameters['off_chain_fee']
@@ -478,9 +487,13 @@ async def main():
             if transfer_result == TransferResult.SUCCESS:
                 print(f"{i+1}/{len(filtered_tos)} {i+1}: Successful Transfer! (tx hash: {response['hash']}, to: {to_address}, nftId: {nft_info['nftId']})")
                 offchain_parameters['storage_id']['offchainId'] += 2
-            elif transfer_result ==  TransferResult.FAILED:
+            elif transfer_result == TransferResult.FAILED:
                 print(f"{i+1}/{len(filtered_tos)} {i+1}: Transfer FAILED... (to: {to_address}, nftId: {nft_info['nftId']})")
-            elif transfer_result ==  TransferResult.TESTMODE:
+            elif transfer_result == TransferResult.FEE_INVALID: # Invalid fees, exit cleanly
+                print(f"{i+1}/{len(filtered_tos)} {i+1}: Transfer FAILED due to invalid fee... (to: {to_address}, nftId: {nft_info['nftId']})")
+                print(f"Fees increased above {cfg.feeLimit}{cfg.feeSymbol} limit, aborting...")
+                sys.exit(1)
+            elif transfer_result == TransferResult.TESTMODE:
                 print(f"{i+1}/{len(filtered_tos)} {i+1}: Skipping transfer (test mode) (to: {to_address}, nftId: {nft_info['nftId']})")
 
             transfer_info.append(info)
