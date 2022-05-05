@@ -274,7 +274,8 @@ async def get_hashes_and_sign(cfg, secret, cid: str, amount: int, offchain_param
         nft_data_poseidon_hash,
         amount,
         cfg.maxFeeTokenId,
-        int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
+        int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ),
+        # int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
         cfg.validUntil,
         offchain_parameters['storage_id']['offchainId']
     ]
@@ -321,7 +322,7 @@ async def mint_nft(cfg, secret, nft_data_poseidon_hash: str, nft_id: str, amount
             royaltyPercentage=cfg.royaltyPercentage,
             storageId=offchain_parameters['storage_id']['offchainId'],
             maxFeeTokenId=cfg.maxFeeTokenId,
-            maxFeeAmount=offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee'],
+            maxFeeAmount=int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ),
             forceToMint=False,
             counterFactualNftInfo=offchain_parameters['counterfactual_nft_info'],
             eddsaSignature=eddsa_signature
