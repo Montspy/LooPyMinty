@@ -448,6 +448,7 @@ async def main():
 
             if args.mode == TransferMode.SINGLE:
                 nft_info = nfts['data'][0]
+                index = 0
             elif args.mode == TransferMode.RANDOM:
                 # Pick random NFT ID by index
                 index = random.choices(range(nfts['totalNum']), weights)[0]
