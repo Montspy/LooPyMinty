@@ -13,6 +13,9 @@ import json
 
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTTransferEddsaSignHelper
+from hello_loopring.sdk.sig_utils.ecdsa_utils import EIP712, generateTransferEIP712Hash
+from py_eth_sig_utils import utils as sig_utils
+from py_eth_sig_utils.signing import v_r_s_to_signature
 
 # Verbose output
 VERBOSE = False
@@ -52,10 +55,20 @@ async def load_config(args, paths: Struct):
     cfg = Struct()
     secret = Struct()   # Split to avoid leaking keys to console or logs
 
-    secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
-    cfg.fromAddress           = os.getenv("FROM")
-    cfg.maxFeeTokenId         = int(os.getenv("FEE_TOKEN_ID"))
-    
+    if args.loopygen:
+        with open(paths.transfer_config) as f:
+            config_json = json.load(f)
+        loopygen_cfg = Struct(config_json)
+        secret.loopringPrivateKey = loopygen_cfg.private_key
+        secret.metamaskPrivateKey = loopygen_cfg.private_key_mm
+        cfg.fromAddress           = loopygen_cfg.sender
+        cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
+    else:
+        secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
+        secret.metamaskPrivateKey = os.getenv("L1_PRIVATE_KEY")
+        cfg.fromAddress           = os.getenv("FROM")
+        cfg.maxFeeTokenId         = int(os.getenv("FEE_TOKEN_ID"))
+
     cfg.feeSlippage           = 0.5 # Fee limit is estimatedFee * ( 1 + feeSlippage ), default: +50%
     cfg.validUntil            = 1700000000
     cfg.nftFactory            = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
@@ -65,12 +78,16 @@ async def load_config(args, paths: Struct):
     cfg.fromAccount, cfg.fromAddress = await retry_async(get_account_info, cfg.fromAddress, retries=3)
     assert cfg.fromAddress and cfg.fromAccount, f"Invalid from address: {cfg.fromAddress} (account ID {cfg.fromAccount})"
 
-    assert secret.loopringPrivateKey, "Missing private key (LOOPRING_PRIVATE_KEY)"
+    assert secret.loopringPrivateKey, "Missing Loopring private key (LOOPRING_PRIVATE_KEY)"
+    assert secret.metamaskPrivateKey, "Missing MetaMask private key (L1_PRIVATE_KEY)"
     assert cfg.maxFeeTokenId in range(len(token_decimals)), f"Missing or invalid fee token ID (FEE_TOKEN_ID): {cfg.maxFeeTokenId}"
 
     if secret.loopringPrivateKey[:2] != "0x":
         secret.loopringPrivateKey = "0x{0:0{1}x}".format(int(secret.loopringPrivateKey), 64)
     secret.loopringPrivateKey = secret.loopringPrivateKey.lower()
+    if len(secret.metamaskPrivateKey) == 64 and secret.metamaskPrivateKey[:2] != "0x":
+        secret.metamaskPrivateKey = "0x" + secret.metamaskPrivateKey
+    secret.metamaskPrivateKey = secret.metamaskPrivateKey.lower()
     
     return cfg, secret
 
@@ -94,6 +111,7 @@ def parse_args():
     parser.add_argument("--test", help="Skips the transfer step", action='store_true')
     parser.add_argument("--noprompt", help="Skip all user prompts", action='store_true')
     parser.add_argument("-V", "--verbose", help="Verbose output", action='store_true')
+    parser.add_argument('--loopygen', help=argparse.SUPPRESS, action='store_true')
 
     args = parser.parse_args()
 
@@ -282,16 +300,42 @@ async def get_hashes_and_sign(cfg, secret, tokenId: int, amount: int, toAddress:
     log(f"Signed NFT payload hash: {eddsa_signature}")
     info['eddsa_signature'] = eddsa_signature
 
-    return eddsa_signature
+    # Generate the ECDSA signature
+    EIP712.init_env(name="Loopring Protocol",
+                    version="3.6.0",
+                    chainId=1,
+                    verifyingContract="0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4")
 
-async def transfer_nft(cfg, secret,  amount: int, toAccount: int, toAddress: str, nftInfo: NftInfo, eddsa_signature: str, offchain_parameters: dict, test_mode: bool, info: dict):
+    message = generateTransferEIP712Hash(req={
+        'payerAddr': cfg.fromAddress,
+        'payeeAddr': toAddress,
+        'token': {
+            'volume': str(amount),
+            'tokenId': tokenId
+        },
+        'maxFee': {
+            'tokenId': cfg.maxFeeTokenId,
+            'volume': int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ) # Apply max fee slippage
+        },
+        'validUntil': cfg.validUntil,
+        'storageId': offchain_parameters['storage_id']['offchainId']
+    })
+
+    # print(f"{message=}")
+    eth_pkey = int(secret.metamaskPrivateKey, 16).to_bytes(32, byteorder='big')
+    v, r, s = sig_utils.ecsign(message, eth_pkey)
+    ecdsa_signature = "0x" + bytes.hex(v_r_s_to_signature(v, r, s)) + "02"
+    # print(f"{ecdsa_signature=}")
+
+    return eddsa_signature, ecdsa_signature
+
+async def transfer_nft(cfg, secret,  amount: int, toAccount: int, toAddress: str, nftInfo: NftInfo, eddsa_signature: str, ecdsa_signature: str, offchain_parameters: dict, test_mode: bool, info: dict):
     async with LoopringMintService() as lms:
         if test_mode:
             return TransferResult.TESTMODE, None
         
         nft_transfer_response = await lms.transferNft(
             apiKey=secret.loopringApiKey,
-            privateKey=secret.loopringPrivateKey,
             exchange=cfg.exchange,
             fromAccountId=cfg.fromAccount,
             fromAddress=cfg.fromAddress,
@@ -305,7 +349,8 @@ async def transfer_nft(cfg, secret,  amount: int, toAccount: int, toAddress: str
             memo=cfg.memo,
             nftInfo=nftInfo,
             counterFactualNftInfo=offchain_parameters['counterfactual_nft_info'],
-            eddsaSignature=eddsa_signature
+            eddsaSignature=eddsa_signature,
+            ecdsaSignature=ecdsa_signature
         )
         log(f"Nft Transfer reponse: {nft_transfer_response}")
         info['nft_transfer_response'] = nft_transfer_response
@@ -331,7 +376,7 @@ async def main():
     # Generate paths
     paths = Struct()
     paths.transfer_info = os.path.join(os.path.dirname(__file__), "transfer-info.json")
-    paths.config = "./config.json"
+    paths.transfer_config = "./transfer_config.json"
 
     if not os.path.exists(os.path.dirname(paths.transfer_info)):
         os.makedirs(os.path.dirname(paths.transfer_info))
@@ -471,7 +516,7 @@ async def main():
             offchain_parameters['off_chain_fee'] = approved_off_chain_fee
 
             # Generate Eddsa Signature
-            eddsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], args.amount, to_address, to_account, offchain_parameters=offchain_parameters, info=info)
+            eddsa_signature, ecdsa_signature = await get_hashes_and_sign(cfg, secret, nft_info['tokenId'], args.amount, to_address, to_account, offchain_parameters=offchain_parameters, info=info)
 
             # Submit the nft transfer
             transfer_result, response = await transfer_nft(cfg,
@@ -481,6 +526,7 @@ async def main():
                                                            toAddress=to_address,
                                                            nftInfo=nft_info,
                                                            eddsa_signature=eddsa_signature,
+                                                           ecdsa_signature=ecdsa_signature,
                                                            offchain_parameters=offchain_parameters,
                                                            test_mode=args.test,
                                                            info=info)

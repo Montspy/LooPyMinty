@@ -9,9 +9,6 @@ from DataClasses import *
 from hello_loopring.sdk.ethsnarks.field import SNARK_SCALAR_FIELD
 from hello_loopring.sdk.ethsnarks.poseidon import poseidon_params
 from hello_loopring.sdk.sig_utils.eddsa_utils import *
-from hello_loopring.sdk.sig_utils.ecdsa_utils import EIP712, generateTransferEIP712Hash
-from py_eth_sig_utils import utils as sig_utils
-from py_eth_sig_utils.signing import v_r_s_to_signature
 
 class NFTDataEddsaSignHelper(EddsaSignHelper):
     MAX_INPUTS: int = 6
@@ -406,7 +403,6 @@ class LoopringMintService(object):
     async def transferNft(
             self,
             apiKey: str,
-            privateKey: str,
             exchange: str,
             fromAccountId: int,
             fromAddress: str,
@@ -420,7 +416,8 @@ class LoopringMintService(object):
             memo: str,
             counterFactualNftInfo: CounterFactualNftInfo,
             nftInfo: NftInfo,
-            eddsaSignature: str) -> TransferResponseData:
+            eddsaSignature: str,
+            ecdsaSignature: str) -> TransferResponseData:
         params = {
             "exchange": exchange,
             "eddsaSignature": eddsaSignature,
@@ -445,32 +442,6 @@ class LoopringMintService(object):
             "storageId": storageId,
             "validUntil": validUntil
         }
-
-        EIP712.init_env(name="Loopring Protocol",
-                        version="3.6.0",
-                        chainId=1,
-                        verifyingContract="0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4")
-
-        message = generateTransferEIP712Hash(req={
-            'payerAddr': fromAddress,
-            'payeeAddr': toAddress,
-            'token': {
-                'volume': str(amount),
-                'tokenId': nftInfo['tokenId']
-            },
-            'maxFee': {
-                'tokenId': maxFeeTokenId,
-                'volume': str(maxFeeAmount)
-            },
-            'validUntil': validUntil,
-            'storageId': storageId
-        })
-
-        # print(f"{message=}")
-        eth_pkey = int(os.getenv('L1_PRIVATE_KEY').lower(), 16).to_bytes(32, byteorder='big')
-        v, r, s = sig_utils.ecsign(message, eth_pkey)
-        ecdsaSignature = "0x" + bytes.hex(v_r_s_to_signature(v, r, s)) + "02"
-        # print(f"{ecdsaSignature=}")
         headers = {
             "x-api-key": apiKey,
             "x-api-sig": ecdsaSignature
