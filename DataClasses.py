@@ -21,6 +21,11 @@ class Struct(dict):
     def __repr__(self):
         return super().__repr__()
 
+class TransferResponseData(TypedDict):
+    hash: str
+    status: str
+    isIdempotent: bool
+
 class MintResponseData(TypedDict):
     hash: str
     nftTokenId: int
@@ -53,6 +58,22 @@ class OffchainFee(TypedDict):
 class StorageId(TypedDict):
     orderId: int
     offchainId: int
+    
+
+class NftInfo(TypedDict):
+    id: int
+    accountId: int
+    tokenId: int
+    nftData: str
+    tokenAddress: str
+    nftId: str
+    nftType: str
+    total: int
+    locked: int
+
+class NftBalance(TypedDict):
+    totalNum: int
+    data: 'list[NftInfo]'
 
 class NftData(TypedDict):
     nftData: str
@@ -74,6 +95,17 @@ class MintResult:
     SUCCESS = 0
     EXISTS = 1
     FEE_INVALID = 2
-    TESTMODE = 3
+    TESTMODE = 99
+
+class TransferResult:
+    FAILED = -1
+    SUCCESS = 0
+    FEE_INVALID = 2
+    TESTMODE = 99
+
+class TransferMode:
+    SINGLE=1
+    RANDOM=2
+    ORDERED=3
 
 token_decimals = {'ETH': 18, 'LRC': 18, 'USDT': 6, 'DAI': 18, 'USDC': 6}

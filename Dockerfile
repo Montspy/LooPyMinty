@@ -32,6 +32,7 @@ COPY --from=python_modules /usr/local/lib/python3.9 /usr/lib/python3.9
 # Add the cli files
 ADD dockerfiles/prepare.sh /usr/local/bin/prepare
 ADD dockerfiles/mint.sh /usr/local/bin/mint
+ADD dockerfiles/transfer.sh /usr/local/bin/transfer
 ADD dockerfiles/mintcollection.sh /usr/local/bin/mintcollection
 
 CMD ["sh"]
