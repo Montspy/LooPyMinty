@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import json
 import base58
+import re
 
 from DataClasses import *
 from LoopringMintService import LoopringMintService, NFTDataEddsaSignHelper, NFTEddsaSignHelper
@@ -24,14 +25,14 @@ def plog(object, **kwds):
 
 async def get_account_info(account: str):
     async with LoopringMintService() as lms:
-        account = str(account).strip()
-        if account[:2] == "0x":
+        account = str(account).strip().lower()
+        if account[:2] == "0x": # Assuming it's an address formatted as L2 hex-string 
             address = account
             id = await lms.getAccountId(address)
-        elif account[-4:] == ".eth":
+        elif account[-4:] == ".eth":    # Assuming it's an ENS
             address = await lms.resolveENS(account)
             id = await lms.getAccountId(address)
-        else:
+        else:   # Assuming it's an account ID
             id = int(account)
             address = await lms.getAccountAddress(id)
     return id, address
@@ -51,7 +52,7 @@ async def load_config(args, paths: Struct):
     cfg = Struct()
     secret = Struct()   # Split to avoid leaking keys to console or logs
 
-    if args.loopygen and args.name:
+    if args.loopygen and args.name: # Batch minting a generated collection of NFTs from LooPyGen
         with open(paths.traits) as f:
             traits_json = json.load(f)
         traits =  Struct(traits_json)
@@ -64,7 +65,17 @@ async def load_config(args, paths: Struct):
         cfg.nftType               = int(loopygen_cfg.nft_type)
         cfg.royaltyPercentage     = int(traits.royalty_percentage)
         cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
-    else:
+    elif args.loopygen and args.json: # Batch minting a folder of NFTs from LooPyGen
+        with open(paths.config) as f:
+            config_json = json.load(f)
+        loopygen_cfg = Struct(config_json)
+        secret.loopringPrivateKey = loopygen_cfg.private_key
+        cfg.minter                = loopygen_cfg.minter
+        cfg.royalty               = loopygen_cfg.minter
+        cfg.nftType               = int(loopygen_cfg.nft_type)
+        cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
+        cfg.maxFeeTokenId         = int(loopygen_cfg.fee_token)
+    else:   # Minting from LooPyMinty
         secret.loopringPrivateKey = os.getenv("LOOPRING_PRIVATE_KEY")
         cfg.minter                = os.getenv("MINTER")
         cfg.royalty               = os.getenv("ROYALTY_ADDRESS")
@@ -72,6 +83,7 @@ async def load_config(args, paths: Struct):
         cfg.royaltyPercentage     = int(os.getenv("ROYALTY_PERCENTAGE"))
         cfg.maxFeeTokenId         = int(os.getenv("FEE_TOKEN_ID"))
 
+    cfg.feeSlippage           = 0.5 # Fee limit is estimatedFee * ( 1 + feeSlippage ), default: +50%
     cfg.validUntil            = 1700000000
     cfg.nftFactory            = "0xc852aC7aAe4b0f0a0Deb9e8A391ebA2047d80026"
     cfg.exchange              = "0x0BABA1Ad5bE3a5C0a66E7ac838a129Bf948f1eA4"
@@ -90,6 +102,7 @@ async def load_config(args, paths: Struct):
 
     if secret.loopringPrivateKey[:2] != "0x":
         secret.loopringPrivateKey = "0x{0:0{1}x}".format(int(secret.loopringPrivateKey), 64)
+    secret.loopringPrivateKey = secret.loopringPrivateKey.lower()
     
     return cfg, secret
 
@@ -113,11 +126,14 @@ def parse_args():
     batch_group.add_argument("-e", "--end", help="Specify the last ID to batch mint", type=int)
     args = parser.parse_args()
 
+    # Rebuild command
+    args.command = "./docker.sh mint " + " ".join(sys.argv[1:])
+
     # CID sources
     assert args.json or args.cid or (args.loopygen and args.name), "Missing --cid or --json argument, please provide one"
 
     # LooPyGen specifics
-    if args.loopygen and args.name:
+    if not args.json and not args.cid and (args.loopygen and args.name):
         args.json = os.path.join("./generated", args.name, "metadata-cids.json")
         args.cid = None
     # END LooPyGen specifics
@@ -156,7 +172,10 @@ def estimate_batch_fees(cfg, off_chain_fee, count):
     discount = off_chain_fee['fees'][cfg.maxFeeTokenId]['discount']
     decimals = token_decimals[token_symbol]
 
-    return count * fee * discount / (10 ** decimals), token_symbol
+    estimated_fee = count * fee * discount / (10 ** decimals)
+    limit_fee = estimated_fee * (1 + cfg.feeSlippage)
+
+    return estimated_fee, limit_fee, token_symbol
 
 # Prompts the user to answer by yes or no
 def prompt_yes_no(prompt: str, default: str=None):
@@ -256,7 +275,8 @@ async def get_hashes_and_sign(cfg, secret, cid: str, amount: int, offchain_param
         nft_data_poseidon_hash,
         amount,
         cfg.maxFeeTokenId,
-        int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
+        int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ),
+        # int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']),
         cfg.validUntil,
         offchain_parameters['storage_id']['offchainId']
     ]
@@ -303,7 +323,7 @@ async def mint_nft(cfg, secret, nft_data_poseidon_hash: str, nft_id: str, amount
             royaltyPercentage=cfg.royaltyPercentage,
             storageId=offchain_parameters['storage_id']['offchainId'],
             maxFeeTokenId=cfg.maxFeeTokenId,
-            maxFeeAmount=offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee'],
+            maxFeeAmount=int( (1 + cfg.feeSlippage) * int(offchain_parameters['off_chain_fee']['fees'][cfg.maxFeeTokenId]['fee']) ),
             forceToMint=False,
             counterFactualNftInfo=offchain_parameters['counterfactual_nft_info'],
             eddsaSignature=eddsa_signature
@@ -311,10 +331,14 @@ async def mint_nft(cfg, secret, nft_data_poseidon_hash: str, nft_id: str, amount
         log(f"Nft Mint reponse: {nft_mint_response}")
         info['nft_mint_response'] = nft_mint_response
 
-        if nft_mint_response is not None and lms.last_status == 200:
+        if nft_mint_response is None:   # Something failed
+            mint_code = lms.last_error['resultInfo']['code']
+            if mint_code == 114002: # Invalid fee amount
+                return MintResult.FEE_INVALID
+        elif lms.last_status == 200:    # Mint succeeded
             return MintResult.SUCCESS
-        else:
-            return MintResult.FAILED
+        
+        return MintResult.FAILED
 
 async def main():
     load_dotenv()
@@ -329,7 +353,7 @@ async def main():
     paths = Struct()
     paths.mint_info = os.path.join(os.path.dirname(__file__), "mint-info.json")
     paths.config = "./config.json"
-    if args.loopygen:
+    if args.loopygen and args.name:
         paths.traits = os.path.join("./images", args.name, "traits.json")
 
     # Parse all cids from JSON or command line
@@ -389,10 +413,10 @@ async def main():
 
         # Estimate fees and get user approval
         if not approved_fees_prompt:
-            batch_fees, fees_symbol = estimate_batch_fees(cfg, offchain_parameters['off_chain_fee'], len(filtered_cids))
+            cfg.feeEstimate, cfg.feeLimit, cfg.feeSymbol = estimate_batch_fees(cfg, offchain_parameters['off_chain_fee'], len(filtered_cids))
             log("--------")
-            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for minting {args.amount} copies of {len(filtered_cids)} NFTs: {batch_fees}{fees_symbol}, continue?", default="no")
-            mint_info.append({'fee_approval': approved_fees_prompt, 'fee': batch_fees, 'token': fees_symbol})
+            approved_fees_prompt = prompt_yes_no(f"Estimated L2 fees for minting {args.amount} copies of {len(filtered_cids)} NFTs: {cfg.feeEstimate}-{cfg.feeLimit}{cfg.feeSymbol}, continue?", default="no")
+            mint_info.append({'fee_approval': approved_fees_prompt, 'feeEstimate': cfg.feeEstimate, 'feeLimit': cfg.feeLimit, 'feeSymbol': cfg.feeSymbol})
             if not approved_fees_prompt: 
                 sys.exit("Aborted by user")
         
@@ -420,11 +444,22 @@ async def main():
             if mint_result == MintResult.SUCCESS:
                 print(f"{i+1}/{len(filtered_cids)} NFT {id}: Successful Mint! ({args.amount}x {cid_hash})")
                 offchain_parameters['storage_id']['offchainId'] += 2
-            elif mint_result ==  MintResult.FAILED:
+            elif mint_result == MintResult.FAILED:
                 print(f"{i+1}/{len(filtered_cids)} NFT {id}: Mint FAILED... ({args.amount}x {cid_hash})")
-            elif mint_result ==  MintResult.EXISTS:
+            elif mint_result == MintResult.FEE_INVALID: # Invalid fees, exit cleanly
+                print(f"{i+1}/{len(filtered_cids)} NFT {id}: Mint FAILED due to invalid fee... ({args.amount}x {cid_hash})")
+                print(f"Fees increased above {cfg.feeLimit}{cfg.feeSymbol} limit, aborting...")
+                # Display command to restart mint where it stopped
+                restart_command = ""
+                if "--start " in args.command or "-s " in args.command:
+                    restart_command = re.sub(r'(?:-s)|(?:--start) \d+', f"--start {id}", args.command)
+                else:
+                    restart_command = args.command + f" --start {id}"
+                print(f"To restart when fees are lower use: \n{restart_command}")
+                sys.exit(1)
+            elif mint_result == MintResult.EXISTS:
                 print(f"{i+1}/{len(filtered_cids)} NFT {id}: Skipping mint (nft already exists) ({args.amount}x {cid_hash})")
-            elif mint_result ==  MintResult.TESTMODE:
+            elif mint_result == MintResult.TESTMODE:
                 print(f"{i+1}/{len(filtered_cids)} NFT {id}: Skipping mint (test mint mode) ({args.amount}x {cid_hash})")
 
             mint_info.append(info)
